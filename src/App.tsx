@@ -5,6 +5,7 @@ import AOS from 'aos';
 // Pages
 import HomePage from './pages/HomePage';
 import WordOfDayPage from './pages/WordOfDayPage';
+import QuizPage from './pages/QuizPage';
 
 // Import AOS script for animations
 import 'aos/dist/aos.css';
@@ -22,6 +23,7 @@ const App: React.FC = () => {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/word-of-day" element={<WordOfDayPage />} />
+      <Route path="/quiz" element={<QuizPage />} />
     </Routes>
   );
 };

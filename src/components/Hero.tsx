@@ -67,7 +67,12 @@ const Hero: React.FC = () => {
           <h1>Elevate Your Vocabulary <span className="gradient-text">One Word at a Time</span></h1>
           <p className="subtitle">A free, open-source vocabulary builder that makes learning new words fun and effective with daily words, quizzes, and machine learning.</p>
           <div className="cta-buttons">
-            <a href="#download" className="primary-btn">Download Now</a>
+            <Link to="/quiz" className="primary-btn play-now-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              Play Now
+            </Link>
             <Link to="/word-of-day" className="secondary-btn">See Today's Word</Link>
           </div>
         </div>
@@ -83,7 +88,7 @@ const Hero: React.FC = () => {
                     <p><span className="pronunciation">{currentWord.pronunciation}</span></p>
                     <p className="definition">{currentWord.definition}</p>
                     <div className="bookmark-button">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                       </svg>
                     </div>

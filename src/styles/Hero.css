@@ -264,4 +264,52 @@
   .app-screenshot {
     height: 500px;
   }
+}
+
+.play-now-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.play-now-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: white;
+  stroke: none;
+  transition: transform 0.3s ease;
+}
+
+.play-now-btn:hover svg {
+  transform: translateX(3px) scale(1.1);
+}
+
+.play-now-btn::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 100%;
+  top: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.1);
+  transition: width 0.3s ease;
+  z-index: -1;
+}
+
+.play-now-btn:hover::after {
+  width: 100%;
+  left: 0;
+  right: auto;
+}
+
+.play-now-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 7px 14px rgba(106, 17, 203, 0.3);
+}
+
+.play-now-btn:active {
+  transform: translateY(1px);
 } 

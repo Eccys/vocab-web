@@ -409,4 +409,41 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+.play-now-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border-radius: 30px;
+  padding: 1rem 2rem;
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+}
+
+.play-now-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 123, 255, 0.3);
+}
+
+.play-now-btn:active {
+  transform: translateY(1px);
+}
+
+.play-now-btn svg {
+  width: 24px;
+  height: 24px;
+  stroke: white;
+  fill: white;
+  transition: transform 0.3s ease;
+}
+
+.play-now-btn:hover svg {
+  transform: scale(1.1);
 } 

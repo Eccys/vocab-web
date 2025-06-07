@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/SettingsScreen.css';
+import { useAuth } from '../services/AuthContext';
 
 const SettingsScreen: React.FC = () => {
   // Add state for interactive elements
@@ -7,10 +8,23 @@ const SettingsScreen: React.FC = () => {
   const [spacedRepetition, setSpacedRepetition] = useState<boolean>(true);
   const [neuralProcessing, setNeuralProcessing] = useState<boolean>(false);
   const [reduceAnimations, setReduceAnimations] = useState<boolean>(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState<boolean>(false);
+
+  const { currentUser, signOut, isAuthenticated } = useAuth();
 
   // Handle slider change
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSliderValue(parseInt(e.target.value));
+  };
+
+  // Handle sign out
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setShowSignOutConfirm(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -19,24 +33,70 @@ const SettingsScreen: React.FC = () => {
       <div className="settings-section">
         <h2>Authentication</h2>
         
-        <div className="settings-item with-arrow">
-          <div className="item-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="10" r="3" />
-              <path d="M7 20.662V19c0-1.657 2.239-3 5-3s5 1.343 5 3v1.662" />
-            </svg>
+        {isAuthenticated ? (
+          <>
+            <div className="settings-item with-arrow">
+              <div className="item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="10" r="3" />
+                  <path d="M7 20.662V19c0-1.657 2.239-3 5-3s5 1.343 5 3v1.662" />
+                </svg>
+              </div>
+              <div className="item-content">
+                <div className="item-label">Account</div>
+                <div className="item-value">{currentUser?.email || currentUser?.displayName}</div>
+              </div>
+              <div className="item-action">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </div>
+            </div>
+            
+            <div className="settings-item" onClick={() => setShowSignOutConfirm(true)}>
+              <div className="item-icon warning">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+              </div>
+              <div className="item-content">
+                <div className="item-label">Sign Out</div>
+              </div>
+            </div>
+            
+            {showSignOutConfirm && (
+              <div className="confirm-dialog">
+                <p>Are you sure you want to sign out?</p>
+                <div className="confirm-actions">
+                  <button className="confirm-yes" onClick={handleSignOut}>Yes, Sign Out</button>
+                  <button className="confirm-no" onClick={() => setShowSignOutConfirm(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="settings-item with-arrow">
+            <div className="item-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                <polyline points="10 17 15 12 10 7"></polyline>
+                <line x1="15" y1="12" x2="3" y2="12"></line>
+              </svg>
+            </div>
+            <div className="item-content">
+              <div className="item-label">Sign In</div>
+              <div className="item-value">Connect to save your progress</div>
+            </div>
+            <div className="item-action">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
           </div>
-          <div className="item-content">
-            <div className="item-label">Account</div>
-            <div className="item-value">wow@gmail.com</div>
-          </div>
-          <div className="item-action">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </div>
-        </div>
+        )}
       </div>
       
       {/* Learning Section */}
