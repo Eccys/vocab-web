@@ -237,7 +237,7 @@ input:checked + .toggle-slider:before {
   height: 100%;
   display: flex;
   flex-direction: column;
-}
+} 
 
 .confirm-dialog {
   background-color: rgba(0, 0, 0, 0.05);

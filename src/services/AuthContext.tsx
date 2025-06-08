@@ -21,15 +21,29 @@ interface AuthContextType {
   isAuthenticated: boolean;
 }
 
+// Create a context with a default undefined value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Export the AuthProvider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Set up the auth state listener
   useEffect(() => {
+    console.log("Setting up auth state listener...");
     const unsubscribe = onAuthStateChange((user) => {
+      console.log("Auth state changed:", user ? "User signed in" : "No user");
       setCurrentUser(user);
+      setLoading(false);
+    });
+
+    // Check for current user on mount
+    getCurrentUser().then(user => {
+      if (user && !currentUser) {
+        console.log("Found existing user session on mount:", user.uid);
+        setCurrentUser(user);
+      }
       setLoading(false);
     });
 
@@ -83,14 +97,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signOut,
     isAuthenticated: !!currentUser
   };
+  
+  // Only log on value changes
+  useEffect(() => {
+    console.log("AuthContext value changed:", { 
+      isAuthenticated: !!currentUser, 
+      hasUser: !!currentUser, 
+      loading 
+    });
+  }, [!!currentUser, loading]);
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
 
+// Export the hook for using the auth context
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -99,4 +123,5 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
+// Export the AuthContext as default
 export default AuthContext; 

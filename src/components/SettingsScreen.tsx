@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/SettingsScreen.css';
 import { useAuth } from '../services/AuthContext';
+import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
 
 const SettingsScreen: React.FC = () => {
   // Add state for interactive elements
@@ -11,6 +12,18 @@ const SettingsScreen: React.FC = () => {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState<boolean>(false);
 
   const { currentUser, signOut, isAuthenticated } = useAuth();
+  const { service } = useSpacedRepetition();
+
+  // Initialize settings from localStorage or defaults
+  useEffect(() => {
+    // Load saved settings
+    const savedSpacedRepetition = localStorage.getItem('spacedRepetition');
+    if (savedSpacedRepetition !== null) {
+      const enabled = savedSpacedRepetition === 'true';
+      setSpacedRepetition(enabled);
+      service.setSettings({ enabled });
+    }
+  }, [service]);
 
   // Handle slider change
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,6 +40,20 @@ const SettingsScreen: React.FC = () => {
     }
   };
 
+  // Handle spaced repetition toggle
+  const handleSpacedRepetitionToggle = () => {
+    const newValue = !spacedRepetition;
+    setSpacedRepetition(newValue);
+    
+    // Update service settings
+    service.setSettings({ enabled: newValue });
+    
+    // Save to localStorage
+    localStorage.setItem('spacedRepetition', newValue.toString());
+    
+    console.log(`Spaced repetition ${newValue ? 'enabled' : 'disabled'}`);
+  };
+
   return (
     <div className="settings-screen">
       {/* Authentication Section */}
@@ -35,16 +62,16 @@ const SettingsScreen: React.FC = () => {
         
         {isAuthenticated ? (
           <>
-            <div className="settings-item with-arrow">
-              <div className="item-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <circle cx="12" cy="10" r="3" />
-                  <path d="M7 20.662V19c0-1.657 2.239-3 5-3s5 1.343 5 3v1.662" />
-                </svg>
-              </div>
-              <div className="item-content">
-                <div className="item-label">Account</div>
+        <div className="settings-item with-arrow">
+          <div className="item-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="10" r="3" />
+              <path d="M7 20.662V19c0-1.657 2.239-3 5-3s5 1.343 5 3v1.662" />
+            </svg>
+          </div>
+          <div className="item-content">
+            <div className="item-label">Account</div>
                 <div className="item-value">{currentUser?.email || currentUser?.displayName}</div>
               </div>
               <div className="item-action">
@@ -89,13 +116,13 @@ const SettingsScreen: React.FC = () => {
             <div className="item-content">
               <div className="item-label">Sign In</div>
               <div className="item-value">Connect to save your progress</div>
-            </div>
-            <div className="item-action">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
           </div>
+          <div className="item-action">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </div>
+        </div>
         )}
       </div>
       
@@ -106,13 +133,14 @@ const SettingsScreen: React.FC = () => {
         <div className="settings-item">
           <div className="item-content">
             <div className="item-label">Spaced Repetition</div>
+            <div className="item-value">Optimize word review intervals</div>
           </div>
           <div className="item-action">
             <label className="toggle">
               <input 
                 type="checkbox" 
                 checked={spacedRepetition}
-                onChange={() => setSpacedRepetition(!spacedRepetition)}
+                onChange={handleSpacedRepetitionToggle}
               />
               <span className="toggle-slider"></span>
             </label>

@@ -1,36 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/WordQuizGame.css';
 import { useAuth } from '../services/AuthContext';
-import EmailSignIn from './EmailSignIn';
-
-interface Word {
-  word: string;
-  definition: string;
-  exampleSentence: string;
-  synonym1: string;
-  synonym1Definition: string;
-  synonym1ExampleSentence: string;
-  synonym2: string;
-  synonym2Definition: string;
-  synonym2ExampleSentence: string;
-  synonym3: string;
-  synonym3Definition: string;
-  synonym3ExampleSentence: string;
-  category: string;
-}
+import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
+import AuthModal from './AuthModal';
+import { WordWithSpacedRepetition } from '../services/SpacedRepetitionService';
 
 interface Answer {
   word: string;
   definition: string;
   exampleSentence: string;
   isCorrect: boolean;
+  originalWord?: WordWithSpacedRepetition;
 }
 
 const WordQuizGame: React.FC = () => {
-  const [words, setWords] = useState<Word[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  // States for the quiz
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
@@ -39,12 +23,14 @@ const WordQuizGame: React.FC = () => {
   const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
   const [answeredCount, setAnsweredCount] = useState(0);
   const [showSignInModal, setShowSignInModal] = useState(false);
-  const [showEmailSignIn, setShowEmailSignIn] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [responseStartTime, setResponseStartTime] = useState<number>(0);
+  const [currentWord, setCurrentWord] = useState<WordWithSpacedRepetition | null>(null);
 
   // Get auth context
-  const { signIn, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  
+  // Get spaced repetition context
+  const { service, words, isLoading, error: srError } = useSpacedRepetition();
 
   // Shuffle array (Fisher-Yates algorithm)
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -56,45 +42,23 @@ const WordQuizGame: React.FC = () => {
     return newArray;
   };
 
-  // Load words from JSON file
+  // Setup quiz when context data is loaded
   useEffect(() => {
-    const fetchWords = async () => {
-      try {
-        const response = await fetch('/words.json');
-        if (!response.ok) {
-          throw new Error('Failed to fetch words');
-        }
-        const data = await response.json();
-        // Shuffle the words array to randomize questions
-        setWords(shuffleArray(data));
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to load word list. Please try again later.');
-        setLoading(false);
-      }
-    };
-
-    fetchWords();
-  }, []);
-
-  // Setup quiz when words are loaded
-  useEffect(() => {
-    if (words.length > 0) {
-      setupQuiz(currentWordIndex);
+    if (!isLoading && words.length > 0) {
+      setupQuiz();
     }
-  }, [words, currentWordIndex]);
+  }, [isLoading, words.length]);
 
   // Get random words excluding used ones and the current word
-  const getRandomWords = (count: number, excludeWord: string): Word[] => {
+  const getRandomWords = (count: number, excludeWord?: string): WordWithSpacedRepetition[] => {
     const availableWords = words.filter(
-      word => word.word !== excludeWord && 
-              !usedWords.has(word.word) && 
-              word.category === words[currentWordIndex].category
+      word => (!excludeWord || word.word !== excludeWord) && 
+              !usedWords.has(word.word)
     );
     
     if (availableWords.length < count) {
       // If we don't have enough unused words, just exclude the current word
-      return shuffleArray(words.filter(word => word.word !== excludeWord))
+      return shuffleArray(words.filter(word => !excludeWord || word.word !== excludeWord))
         .slice(0, count);
     }
     
@@ -102,44 +66,77 @@ const WordQuizGame: React.FC = () => {
   };
 
   // Setup quiz with new question and answers
-  const setupQuiz = (wordIndex: number) => {
-    if (wordIndex >= words.length) {
-      setError('You have completed all available words!');
+  const setupQuiz = () => {
+    // Get a new word using the spaced repetition service
+    const quizWords = service.selectWordsForQuiz(1);
+    
+    if (quizWords.length === 0) {
+      console.error('No words available for quiz');
       return;
     }
-
-    const currentWord = words[wordIndex];
+    
+    const selectedWord = quizWords[0];
+    setCurrentWord(selectedWord);
+    
+    console.log(`Setting up quiz for word: ${selectedWord.word}`);
+    
+    // Reset states for the new quiz
     setShowHint(false);
     setHintUsed(false);
     setShowExampleFor(null);
+    setResponseStartTime(Date.now());
 
     // Choose which synonym to use as the correct answer (randomly)
-    const synonymIndex = Math.floor(Math.random() * 3) + 1;
-    const correctSynonym = currentWord[`synonym${synonymIndex}` as keyof Word] as string;
-    const correctDefinition = currentWord[`synonym${synonymIndex}Definition` as keyof Word] as string;
-    const correctExample = currentWord[`synonym${synonymIndex}ExampleSentence` as keyof Word] as string;
+    // Or use the word itself if no synonyms are available
+    const hasSynonyms = selectedWord.synonym1 || selectedWord.synonym2 || selectedWord.synonym3;
+    
+    let correctWord: string;
+    let correctDefinition: string;
+    let correctExample: string | undefined;
+    
+    if (hasSynonyms) {
+      // Find which synonyms are available
+      const availableSynonyms: number[] = [];
+      if (selectedWord.synonym1) availableSynonyms.push(1);
+      if (selectedWord.synonym2) availableSynonyms.push(2);
+      if (selectedWord.synonym3) availableSynonyms.push(3);
+      
+      // Randomly pick one
+      const synonymIndex = availableSynonyms[Math.floor(Math.random() * availableSynonyms.length)];
+      
+      correctWord = selectedWord[`synonym${synonymIndex}` as keyof WordWithSpacedRepetition] as string;
+      correctDefinition = selectedWord[`synonym${synonymIndex}Definition` as keyof WordWithSpacedRepetition] as string;
+      correctExample = selectedWord[`synonym${synonymIndex}ExampleSentence` as keyof WordWithSpacedRepetition] as string;
+    } else {
+      // No synonyms, use the word itself
+      correctWord = selectedWord.word;
+      correctDefinition = selectedWord.definition;
+      correctExample = selectedWord.exampleSentence;
+    }
 
     // Add current word to used set
     const newUsedWords = new Set(usedWords);
-    newUsedWords.add(currentWord.word);
+    newUsedWords.add(selectedWord.word);
     setUsedWords(newUsedWords);
 
     // Get 3 random incorrect words for options
-    const incorrectWords = getRandomWords(3, currentWord.word);
+    const incorrectWords = getRandomWords(3, selectedWord.word);
     
     // Create answer options
     let answerOptions: Answer[] = [
       {
-        word: correctSynonym,
+        word: correctWord,
         definition: correctDefinition,
-        exampleSentence: correctExample,
-        isCorrect: true
+        exampleSentence: correctExample || 'No example available',
+        isCorrect: true,
+        originalWord: selectedWord
       },
       ...incorrectWords.map(word => ({
         word: word.word,
         definition: word.definition,
-        exampleSentence: word.exampleSentence,
-        isCorrect: false
+        exampleSentence: word.exampleSentence || 'No example available',
+        isCorrect: false,
+        originalWord: word
       }))
     ];
 
@@ -159,7 +156,7 @@ const WordQuizGame: React.FC = () => {
     
     // If we lost some answers due to duplicates, add more random words
     while (finalAnswers.length < 4) {
-      const newWords = getRandomWords(4 - finalAnswers.length, currentWord.word);
+      const newWords = getRandomWords(4 - finalAnswers.length, selectedWord.word);
       
       for (const word of newWords) {
         if (!wordSet.has(word.word) && finalAnswers.length < 4) {
@@ -167,8 +164,9 @@ const WordQuizGame: React.FC = () => {
           finalAnswers.push({
             word: word.word,
             definition: word.definition,
-            exampleSentence: word.exampleSentence,
-            isCorrect: false
+            exampleSentence: word.exampleSentence || 'No example available',
+            isCorrect: false,
+            originalWord: word
           });
         }
       }
@@ -187,6 +185,24 @@ const WordQuizGame: React.FC = () => {
       // First time selecting an answer
       setSelectedAnswer(index);
       setAnsweredCount(prevCount => prevCount + 1);
+      
+      // Calculate response time
+      const responseTimeMs = Date.now() - responseStartTime;
+      
+      if (currentWord && answers[index]) {
+        // Get whether the answer was correct
+        const isCorrect = answers[index].isCorrect;
+        
+        // Update word stats in the spaced repetition service
+        service.updateWordStats(
+          currentWord,
+          isCorrect,
+          responseTimeMs,
+          hintUsed
+        );
+        
+        console.log(`Answer recorded: ${isCorrect ? 'correct' : 'incorrect'}, time: ${responseTimeMs}ms, hint: ${hintUsed}`);
+      }
     }
   };
 
@@ -202,46 +218,20 @@ const WordQuizGame: React.FC = () => {
     if (answeredCount === 5 && !isAuthenticated) {
       setShowSignInModal(true);
     } else {
-      setCurrentWordIndex(prevIndex => prevIndex + 1);
+      setupQuiz();
     }
   };
 
-  // Handle continuing without sign-in
+  // Handle continuing without sign-in (used by AuthModal)
   const handleContinueWithoutSignIn = () => {
     setShowSignInModal(false);
-    setCurrentWordIndex(prevIndex => prevIndex + 1);
+    setupQuiz();
   };
 
-  // Handle Google sign-in
-  const handleGoogleSignIn = async () => {
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      await signIn.withGoogle();
-      setShowSignInModal(false);
-      setCurrentWordIndex(prevIndex => prevIndex + 1);
-    } catch (error: any) {
-      setAuthError(error.message || 'Failed to sign in with Google');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  // Handle showing email sign-in form
-  const handleShowEmailSignIn = () => {
-    setShowEmailSignIn(true);
-  };
-
-  // Handle successful authentication
+  // Handle auth success (used by AuthModal)
   const handleAuthSuccess = () => {
-    setShowEmailSignIn(false);
     setShowSignInModal(false);
-    setCurrentWordIndex(prevIndex => prevIndex + 1);
-  };
-
-  // Handle email sign-in cancel
-  const handleEmailSignInCancel = () => {
-    setShowEmailSignIn(false);
+    setupQuiz();
   };
 
   // Handle example click
@@ -249,68 +239,26 @@ const WordQuizGame: React.FC = () => {
     setShowExampleFor(showExampleFor === index ? null : index);
   };
 
-  if (loading) {
+  if (isLoading) {
     return <div className="quiz-loading">Loading quiz questions...</div>;
   }
 
-  if (error) {
-    return <div className="quiz-error">{error}</div>;
+  if (srError) {
+    return <div className="quiz-error">{srError}</div>;
   }
-
-  const currentWord = words[currentWordIndex];
+  
+  if (!currentWord) {
+    return <div className="quiz-loading">Preparing quiz questions...</div>;
+  }
 
   return (
     <div className="word-quiz-game">
-      {showSignInModal && (
-        <div className="modal-overlay">
-          <div className="sign-in-modal">
-            {showEmailSignIn ? (
-              <EmailSignIn 
-                onSuccess={handleAuthSuccess} 
-                onCancel={handleEmailSignInCancel} 
-              />
-            ) : (
-              <>
-                <h2>Save Your Progress</h2>
-                <p>Sign in to track your learning progress and save your stats!</p>
-                
-                {authError && <div className="auth-error">{authError}</div>}
-                
-                <div className="sign-in-options">
-                  <button 
-                    className="google-sign-in" 
-                    onClick={handleGoogleSignIn}
-                    disabled={authLoading}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512" width="20" height="20">
-                      <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
-                    </svg>
-                    {authLoading ? 'Signing in...' : 'Sign in with Google'}
-                  </button>
-                  <button 
-                    className="email-sign-in"
-                    onClick={handleShowEmailSignIn}
-                    disabled={authLoading}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="20" height="20">
-                      <path fill="currentColor" d="M48 64C21.5 64 0 85.5 0 112c0 15.1 7.1 29.3 19.2 38.4L236.8 313.6c11.4 8.5 27 8.5 38.4 0L492.8 150.4c12.1-9.1 19.2-23.3 19.2-38.4c0-26.5-21.5-48-48-48H48zM0 176V384c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V176L294.4 339.2c-22.8 17.1-54 17.1-76.8 0L0 176z"/>
-                    </svg>
-                    Sign in with Email
-                  </button>
-                  <button 
-                    className="skip-sign-in" 
-                    onClick={handleContinueWithoutSignIn}
-                    disabled={authLoading}
-                  >
-                    No thanks, continue as guest
-                  </button>
-                </div>
-                <p className="sign-in-note">We'll never post without your permission.</p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Authentication Modal */}
+      <AuthModal 
+        isOpen={showSignInModal}
+        onSuccess={handleAuthSuccess}
+        onCancel={handleContinueWithoutSignIn}
+      />
 
       <div className="quiz-container">
         <div className="question-section">
@@ -322,7 +270,7 @@ const WordQuizGame: React.FC = () => {
           
           {showHint && (
             <div className="hint-box">
-              <p><strong>Hint:</strong> {currentWord.exampleSentence}</p>
+              <p><strong>Hint:</strong> {currentWord.exampleSentence || 'No example available'}</p>
             </div>
           )}
           

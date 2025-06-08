@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/Header.css';
-import { Home, Download, Menu, X, BookOpenText } from 'lucide-react';
+import { Home, Download, Menu, X, BookOpenText, UserCircle2, LogOut, ChevronDown, Bookmark } from 'lucide-react';
+import { useAuth } from '../services/AuthContext';
+import AuthModal from './AuthModal';
+import { User } from 'firebase/auth';
+import { getCurrentUser } from '../services/FirebaseService';
 
 // Define the navigation items structure
 interface NavItem {
@@ -33,6 +37,33 @@ const Header: React.FC = () => {
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const navigationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Get auth context
+  const { isAuthenticated, currentUser, signOut } = useAuth();
+  
+  // Local state to track user state for immediate UI updates
+  const [localUser, setLocalUser] = useState<User | null>(currentUser);
+  
+  // Update local state immediately when currentUser changes
+  useEffect(() => {
+    console.log("Header auth state changed:", { 
+      isAuthenticated, 
+      currentUser: currentUser ? { 
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName
+      } : null 
+    });
+    
+    // Update local state immediately
+    setLocalUser(currentUser);
+  }, [isAuthenticated, currentUser]);
+  
+  // Check if we're on the quiz page
+  const isQuizPage = location.pathname === '/quiz';
   
   // Define navigation items
   const navItems: NavItem[] = [
@@ -223,6 +254,7 @@ const Header: React.FC = () => {
   // Handle click outside to close mobile menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Handle mobile menu close
       if (
         isMobileMenuOpen && 
         menuRef.current && 
@@ -232,13 +264,22 @@ const Header: React.FC = () => {
       ) {
         setIsMobileMenuOpen(false);
       }
+      
+      // Handle profile dropdown close
+      if (
+        showProfileDropdown && 
+        profileDropdownRef.current && 
+        !profileDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowProfileDropdown(false);
+      }
     };
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, showProfileDropdown]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -356,6 +397,47 @@ const Header: React.FC = () => {
     }
   };
 
+  // Handle sign in button click
+  const handleSignInClick = () => {
+    setShowAuthModal(true);
+  };
+
+  // Handle auth success
+  const handleAuthSuccess = () => {
+    // Set modal closed state
+    setShowAuthModal(false);
+    
+    // Set local user immediately (don't wait for context to update)
+    const current = getCurrentUser();
+    if (current && !localUser) {
+      setLocalUser(current);
+    }
+  };
+
+  // Handle auth cancel
+  const handleAuthCancel = () => {
+    setShowAuthModal(false);
+  };
+  
+  // Toggle profile dropdown
+  const toggleProfileDropdown = () => {
+    setShowProfileDropdown(!showProfileDropdown);
+  };
+  
+  // Handle sign out
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setShowProfileDropdown(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+  
+  // No longer need getUserDisplayName as we handle this inline
+
+  // No need for duplicate auth state change monitoring
+
   return (
     <header className={`header ${isScrolled ? 'scrolled' : ''}`}>
       <div className="container nav-container">
@@ -409,16 +491,77 @@ const Header: React.FC = () => {
         </div>
         
         <div className="header-right">
-          <Link 
-            to="/word-of-day" 
-            className="header-cta-btn"
-            onClick={() => {
-              // Ensure we scroll to top when navigating to Word of Day page
-              window.scrollTo(0, 0);
-            }}
-          >
-            Today's Word
-          </Link>
+          {isQuizPage ? (
+            <>
+              {/* Use localUser for immediate UI updates */}
+              {localUser ? (
+                <div className="user-profile-container" key={`user-${localUser.uid}`}>
+                  <button 
+                    className="user-profile"
+                    onClick={toggleProfileDropdown}
+                  >
+                    <UserCircle2 size={20} />
+                    <span className="user-name">{localUser.displayName || localUser.email?.split('@')[0] || 'User'}</span>
+                    <ChevronDown size={16} className={`dropdown-arrow ${showProfileDropdown ? 'rotated' : ''}`} />
+                  </button>
+                  
+                  {showProfileDropdown && (
+                    <div className="profile-dropdown" ref={profileDropdownRef}>
+                      <div className="profile-header">
+                        <UserCircle2 size={24} />
+                        <div className="profile-info">
+                          <span className="profile-name">{localUser.displayName || localUser.email?.split('@')[0] || 'User'}</span>
+                          <span className="profile-email">{localUser?.email || 'No email'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="profile-stats">
+                        <div className="stat-item">
+                          <span className="stat-value">42</span>
+                          <span className="stat-label">Words Learned</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="stat-value">7</span>
+                          <span className="stat-label">Day Streak</span>
+                        </div>
+                      </div>
+                      
+                      <div className="profile-actions">
+                        <button className="profile-action-btn">
+                          <Bookmark size={16} />
+                          <span>Saved Words</span>
+                        </button>
+                        
+                        <button className="profile-action-btn logout-btn" onClick={handleSignOut}>
+                          <LogOut size={16} />
+                          <span>Sign Out</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button 
+                  className="header-cta-btn sign-in-btn"
+                  onClick={handleSignInClick}
+                >
+                  <UserCircle2 size={20} />
+                  Sign In
+                </button>
+              )}
+            </>
+          ) : (
+            <Link 
+              to="/word-of-day" 
+              className="header-cta-btn"
+              onClick={() => {
+                // Ensure we scroll to top when navigating to Word of Day page
+                window.scrollTo(0, 0);
+              }}
+            >
+              Today's Word
+            </Link>
+          )}
           
           <button 
             className="mobile-menu-toggle" 
@@ -432,6 +575,13 @@ const Header: React.FC = () => {
           </button>
         </div>
       </div>
+      
+      {/* Authentication Modal */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onSuccess={handleAuthSuccess}
+        onCancel={handleAuthCancel}
+      />
     </header>
   );
 };
