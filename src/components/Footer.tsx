@@ -1,6 +1,11 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
 import '../styles/Footer.css';
+import '../styles/UrgentPopup.css';
+
+const MySwal = withReactContent(Swal);
 
 const Footer: React.FC = () => {
   const location = useLocation();
@@ -69,6 +74,32 @@ const Footer: React.FC = () => {
     }
   }, [location.state, navigate]);
 
+  const handleDiscordClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    // Ensure SweetAlert2 uses its own animation system properly
+    MySwal.fire({
+      title: '<span class="urgent-popup-title">Hold On!</span>',
+      html: '<p class="urgent-popup-content">We don\'t have a discord! If you want to talk, or need a friend to listen to you, text us from <a href="https://ecys.xyz" target="_blank" rel="noopener noreferrer">https://ecys.xyz</a>.</p>',
+      icon: 'warning',
+      showClass: {
+        popup: 'animate__animated animate__tada'
+      },
+      hideClass: {
+        popup: 'animate__animated animate__fadeOut'
+      },
+      customClass: {
+        popup: 'urgent-popup-container',
+        title: 'urgent-popup-title',
+        htmlContainer: 'urgent-popup-content',
+        confirmButton: 'urgent-popup-confirm-button',
+      },
+      confirmButtonText: 'Got it!',
+      backdrop: true,
+      allowOutsideClick: false,
+    });
+  };
+
   return (
     <footer className="footer">
       <div className="container">
@@ -86,15 +117,15 @@ const Footer: React.FC = () => {
             </div>
             <div className="footer-column">
               <h4>Resources</h4>
-              <a href="#" className="footer-nav-link">Documentation</a>
-              <a href="#" className="footer-nav-link">Contributing</a>
-              <a href="#" className="footer-nav-link">Releases</a>
+              <a href="https://view.monday.com/8545115126-bda2f6d9a61e0f2787fcc41f19aac547?r=use1" target="_blank" className="footer-nav-link">Changelog</a>
+              <a href="https://github.com/Eccys/vocab-boost/blob/stable/CONTRIBUTING.md" target="_blank" className="footer-nav-link">Contributing</a>
+              <a href="https://github.com/Eccys/vocab-boost/releases" target="_blank" className="footer-nav-link">Releases</a>
             </div>
             <div className="footer-column">
               <h4>Connect</h4>
               <a href="https://github.com/eccys/vocab-boost" target="_blank" rel="noopener noreferrer" className="footer-nav-link">GitHub</a>
-              <a href="#" className="footer-nav-link">Twitter</a>
-              <a href="mailto:help.vocabboost@gmail.com" className="footer-nav-link">Contact Us</a>
+              <a href="#" onClick={handleDiscordClick} className="footer-nav-link">Discord</a>
+              <a href="mailto:help.vocabboost@gmail.com" className="footer-nav-link">Email Us</a>
             </div>
           </div>
         </div>
