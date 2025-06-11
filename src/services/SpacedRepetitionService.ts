@@ -25,6 +25,13 @@ export interface WordWithSpacedRepetition {
   isBookmarked?: boolean;
 }
 
+// Stats interface
+export interface UserStats {
+  wordsLearned: number;
+  dayStreak: number;
+  savedWordsCount: number;
+}
+
 // Settings interface
 export interface SpacedRepetitionSettings {
   enabled?: boolean;
@@ -305,6 +312,63 @@ export class SpacedRepetitionService {
       : 1; // No success before: complete fail
   }
 
+  // Get user statistics
+  public getStats(): UserStats {
+    if (this.words.length === 0) {
+      return { wordsLearned: 0, dayStreak: 0, savedWordsCount: 0 };
+    }
+
+    const wordsLearned = this.words.filter(w => w.timesReviewed > 0).length;
+    const savedWordsCount = this.words.filter(w => w.isBookmarked).length;
+
+    // Calculate day streak
+    const reviewTimestamps = this.words
+      .map(w => w.lastReviewed)
+      .filter(ts => ts > 0);
+    
+    if (reviewTimestamps.length === 0) {
+      return { wordsLearned, dayStreak: 0, savedWordsCount };
+    }
+
+    const uniqueDays = [...new Set(reviewTimestamps.map(ts => new Date(ts).setHours(0, 0, 0, 0)))];
+    uniqueDays.sort((a, b) => b - a);
+
+    let streak = 0;
+    if (uniqueDays.length > 0) {
+      const today = new Date().setHours(0, 0, 0, 0);
+      const yesterday = new Date(today).setDate(new Date(today).getDate() - 1);
+      
+      // Check if the most recent review was today or yesterday
+      if (uniqueDays[0] === today || uniqueDays[0] === yesterday) {
+        streak = 1;
+        for (let i = 0; i < uniqueDays.length - 1; i++) {
+          const day = uniqueDays[i];
+          const prevDay = uniqueDays[i+1];
+          const expectedPrevDay = new Date(day).setDate(new Date(day).getDate() - 1);
+          if (prevDay === expectedPrevDay) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+    
+    return { wordsLearned, dayStreak: streak, savedWordsCount };
+  }
+
+  // Get saved words
+  public getSavedWords(): WordWithSpacedRepetition[] {
+    return this.words.filter(w => w.isBookmarked);
+  }
+
+  // Toggle bookmark status for a word
+  public toggleBookmark(word: WordWithSpacedRepetition): void {
+    word.isBookmarked = !word.isBookmarked;
+    this.pendingChanges.add(word.word);
+    console.log(`Toggled bookmark for "${word.word}" to ${word.isBookmarked}. Sync will occur on page unload.`);
+  }
+
   // Update word stats based on user's answer
   public updateWordStats(
     word: WordWithSpacedRepetition,
@@ -443,7 +507,7 @@ export class SpacedRepetitionService {
     try {
       // Import Firestore functions dynamically to avoid circular dependencies
       const { getFirestoreInstance } = await import('./FirestoreConfig');
-      const { doc, getDoc } = await import('firebase/firestore');
+      const { doc, getDoc, getDocFromServer } = await import('firebase/firestore');
       const { getAuth } = await import('firebase/auth');
       
       console.log(`FETCHING DATA FROM FIRESTORE for user ${this.userId}`);
@@ -479,11 +543,11 @@ export class SpacedRepetitionService {
           console.warn('Error enabling network for Firestore:', err);
         }
         
-        // Get fresh data
-        userDoc = await getDoc(userDocRef);
-        console.log('Got fresh document from Firestore');
+        // Get fresh data from the server
+        userDoc = await getDocFromServer(userDocRef);
+        console.log('Got fresh document from Firestore server');
       } else {
-        // Normal get
+        // Normal get (can use cache)
         userDoc = await getDoc(userDocRef);
       }
       
@@ -944,89 +1008,61 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
   // Debug function to identify field mapping issues
   public async debugFieldMapping(): Promise<void> {
     if (!this.userId) {
-      console.error('No user ID set, cannot debug field mapping');
+      console.warn('[Debug] No user ID set, cannot debug field mapping');
       return;
     }
     
+    // This is a debug function, we need to get firestore instance
+    const { getFirestore, doc, getDoc } = await import('firebase/firestore');
+    const firestore = getFirestore();
+    
+    const userDocRef = doc(firestore, 'users', this.userId);
+    
     try {
-      console.log('DEBUGGING FIELD MAPPING BETWEEN APP AND FIRESTORE');
-      
-      // Import Firestore functions dynamically
-      const { getFirestoreInstance } = await import('./FirestoreConfig');
-      const { doc, getDoc } = await import('firebase/firestore');
-      
-      // Get Firestore instance
-      const db = await getFirestoreInstance();
-      
-      // Get the user document
-      const userDocRef = doc(db, `users/${this.userId}`);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        console.error('User document does not exist in Firestore');
-        return;
-      }
-      
-      const userData = userDoc.data();
-      
-      if (!userData?.words || typeof userData.words !== 'object') {
-        console.error('No words map found in user document');
-        return;
-      }
-      
-      // Get a sample word
-      const wordKeys = Object.keys(userData.words);
-      if (wordKeys.length === 0) {
-        console.error('No words found in Firestore');
-        return;
-      }
-      
-      const sampleWord = userData.words[wordKeys[0]];
-      
-      // Log all field names in the sample word
-      console.log('FIELD NAMES IN FIRESTORE WORD:');
-      const firestoreFields = Object.keys(sampleWord);
-      firestoreFields.forEach(field => {
-        console.debug(`- ${field}: ${typeof sampleWord[field]} = ${sampleWord[field]}`);
-      });
-      
-      // Compare with local model
-      console.log('FIELD NAMES IN APP MODEL:');
-      const sampleLocalWord = this.words[0];
-      const appFields = Object.keys(sampleLocalWord);
-      appFields.forEach(field => {
-        console.debug(`- ${field}: ${typeof sampleLocalWord[field]} = ${sampleLocalWord[field]}`);
-      });
-      
-      // Find fields that differ
-      console.log('FIELD MAPPING ISSUES:');
-      
-      // Fields in Firestore but not in app
-      const uniqueToFirestore = firestoreFields.filter(field => !appFields.includes(field));
-      if (uniqueToFirestore.length > 0) {
-        console.warn(`Fields in Firestore but not in app: ${uniqueToFirestore.join(', ')}`);
-      }
-      
-      // Fields in app but not in Firestore
-      const uniqueToApp = appFields.filter(field => !firestoreFields.includes(field));
-      if (uniqueToApp.length > 0) {
-        console.warn(`Fields in app but not in Firestore: ${uniqueToApp.join(', ')}`);
-      }
-      
-      // Fields that exist in both but with different types
-      const commonFields = firestoreFields.filter(field => appFields.includes(field));
-      commonFields.forEach(field => {
-        const firestoreType = typeof sampleWord[field];
-        const appType = typeof sampleLocalWord[field as keyof WordWithSpacedRepetition];
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        const wordsData = userData.words;
         
-        if (firestoreType !== appType) {
-          console.warn(`Type mismatch for field "${field}": Firestore=${firestoreType}, App=${appType}`);
+        if (wordsData && Object.keys(wordsData).length > 0) {
+          const firstWordKey = Object.keys(wordsData)[0];
+          const firstWordData = wordsData[firstWordKey];
+          
+          console.log(`[Debug] Field mapping for word '${firstWordKey}':`, firstWordData);
+          
+          // Define expected fields
+          const expectedFields: (keyof WordWithSpacedRepetition)[] = [
+            'word', 'definition', 'exampleSentence', 'category',
+            'synonym1', 'synonym1Definition', 'synonym1ExampleSentence',
+            'synonym2', 'synonym2Definition', 'synonym2ExampleSentence',
+            'synonym3', 'synonym3Definition', 'synonym3ExampleSentence',
+            'easeFactor', 'interval', 'repetitionCount', 'lastReviewed',
+            'nextReviewDate', 'timesReviewed', 'timesCorrect', 'isBookmarked'
+          ];
+          
+          // Check for missing or extra fields
+          const actualFields = Object.keys(firstWordData);
+          const missingFields = expectedFields.filter(f => !actualFields.includes(f));
+          const extraFields = actualFields.filter(f => !expectedFields.includes(f as any));
+          
+          if (missingFields.length > 0) {
+            console.warn(`[Debug] Missing fields: ${missingFields.join(', ')}`);
+          } else {
+            console.log('[Debug] All expected fields are present.');
+          }
+          
+          if (extraFields.length > 0) {
+            console.warn(`[Debug] Extra/unexpected fields: ${extraFields.join(', ')}`);
+          }
+          
+        } else {
+          console.log('[Debug] No words found for this user in Firestore.');
         }
-      });
-      
-      console.log('FIELD MAPPING DEBUG COMPLETE');
+      } else {
+        console.log('[Debug] No user document found.');
+      }
     } catch (error) {
-      console.error('Error debugging field mapping:', error);
+      console.error('[Debug] Error during field mapping debug:', error);
     }
   }
 } 
