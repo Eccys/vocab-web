@@ -11,17 +11,17 @@ const Testimonials: React.FC = () => {
 
   const testimonials = [
     {
-      quote: "Actually makes learning words not terrible. Daily word is fun.",
+      quote: "Actually makes learning words not terrible.",
       author: "Snoop_Weeeedy",
       rating: 5
     },
     {
-      quote: "Test prep was shit before. Now I'm throwing around words like 'perspicacious'. love it <3",
+      quote: "Test prep was horrendous; now I'm throwing around words like 'perspicacious'; love it <3",
       author: "NIKE6295",
       rating: 5
     },
     {
-      quote: "it just makes me feel smarter. i guess i like it.",
+      quote: "it makes me smarter xd. i guess i like it.",
       author: "Pho3n1x99",
       rating: 5
     },
