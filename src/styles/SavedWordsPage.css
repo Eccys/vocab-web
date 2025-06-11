@@ -1,0 +1,200 @@
+.saved-words-page {
+  padding: 100px 0;
+  background-color: var(--background-color);
+  background-image: linear-gradient(180deg, rgba(106, 17, 203, 0.02) 0%, rgba(37, 117, 252, 0.02) 100%);
+  perspective: 1500px;
+  min-height: 100vh;
+}
+
+.saved-words-page h1 {
+  text-align: center;
+  color: #fff;
+  font-size: 2.5rem;
+  margin-bottom: 50px;
+  font-weight: 500;
+}
+
+.saved-words-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 30px;
+}
+
+.saved-word-card-container {
+  height: 100%;
+  position: relative;
+  will-change: transform;
+}
+
+.saved-word-card {
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  width: 100%;
+}
+
+.saved-word-card-inner {
+  background-color: #1e1e1e;
+  border-radius: 20px;
+  padding: 30px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #33363f;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transform-style: preserve-3d;
+  will-change: transform;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.3s ease,
+              box-shadow 0.3s ease,
+              border-color 0.3s ease,
+              opacity 0.3s ease;
+}
+
+/* Create a pseudo-element for the dashed border */
+.saved-word-card-inner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px dashed #444;
+  border-radius: 20px;
+  opacity: 0; /* Hidden by default */
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+/* Show dashed border when unbookmarked */
+.saved-word-card-inner.unbookmarked::after {
+  opacity: 1;
+}
+
+.saved-word-card-inner.unbookmarked {
+  opacity: 0.6;
+}
+
+.saved-word-card-inner.unbookmarked:hover {
+  opacity: 0.7;
+}
+
+.saved-word-card-inner:hover {
+  background-color: #292929;
+  border-color: #555;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.7);
+}
+
+.saved-word-card-spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at var(--x, center) var(--y, center),
+    rgba(160, 160, 180, 0.07),
+    rgba(60, 130, 240, 0.04), 
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  transform: translateZ(10px);
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+
+.saved-word-card-inner:hover .saved-word-card-spotlight {
+  opacity: 1;
+}
+
+.saved-word-card-inner h2 {
+  font-size: 1.8rem;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 15px;
+  transform: translateZ(40px);
+  position: relative;
+  z-index: 1;
+}
+
+.saved-word-card-inner p {
+  color: #a0a0a0;
+  line-height: 1.6;
+  flex-grow: 1;
+  transform: translateZ(30px);
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.word-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: auto;
+  transform: translateZ(20px);
+  position: relative;
+  z-index: 1;
+}
+
+.word-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  padding: 5px;
+  margin-left: 10px;
+  transition: color 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.word-action-btn:hover {
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.word-action-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2px;
+}
+
+.word-action-btn.filled-bookmark svg {
+  fill: currentColor;
+}
+
+.word-action-btn.unfilled-bookmark svg {
+  fill: none;
+}
+
+.saved-word-card-inner.animated {
+  opacity: 1;
+}
+
+@media (max-width: 992px) {
+  .saved-words-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .saved-words-page {
+    padding: 80px 0;
+  }
+  
+  .saved-words-list {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .saved-word-card-inner {
+    padding: 25px;
+  }
+} 
