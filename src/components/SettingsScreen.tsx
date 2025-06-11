@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/SettingsScreen.css';
 import { useAuth } from '../services/AuthContext';
-import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
 
 const SettingsScreen: React.FC = () => {
   // Add state for interactive elements
@@ -12,7 +11,6 @@ const SettingsScreen: React.FC = () => {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState<boolean>(false);
 
   const { currentUser, signOut, isAuthenticated } = useAuth();
-  const { service } = useSpacedRepetition();
 
   // Initialize settings from localStorage or defaults
   useEffect(() => {
@@ -21,9 +19,8 @@ const SettingsScreen: React.FC = () => {
     if (savedSpacedRepetition !== null) {
       const enabled = savedSpacedRepetition === 'true';
       setSpacedRepetition(enabled);
-      service.setSettings({ enabled });
     }
-  }, [service]);
+  }, []);
 
   // Handle slider change
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,9 +41,6 @@ const SettingsScreen: React.FC = () => {
   const handleSpacedRepetitionToggle = () => {
     const newValue = !spacedRepetition;
     setSpacedRepetition(newValue);
-    
-    // Update service settings
-    service.setSettings({ enabled: newValue });
     
     // Save to localStorage
     localStorage.setItem('spacedRepetition', newValue.toString());

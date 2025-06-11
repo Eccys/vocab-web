@@ -1,31 +1,38 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import '../styles/Testimonials.css';
 
 const Testimonials: React.FC = () => {
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    testimonial: ''
+  });
+
   const testimonials = [
     {
-      quote: "Vocab has transformed how I learn new words. The daily word feature and quizzes make it fun and engaging!",
-      author: "Sarah M., College Student",
+      quote: "Actually makes learning words not terrible. Daily word is fun.",
+      author: "Snoop_Weeeedy",
       rating: 5
     },
     {
-      quote: "As someone preparing for standardized tests, this app has been invaluable. My vocabulary has improved dramatically.",
-      author: "James T., Graduate Student",
+      quote: "Test prep was shit before. Now I'm throwing around words like 'perspicacious'. love it <3",
+      author: "NIKE6295",
       rating: 5
     },
     {
-      quote: "I love that it's open source and respects my privacy while helping me learn. The machine learning system really works!",
-      author: "Elena K., Software Developer",
+      quote: "it just makes me feel smarter. i guess i like it.",
+      author: "Pho3n1x99",
       rating: 5
     },
     {
-      quote: "The interface is beautiful and intuitive. I've tried many vocabulary apps, but this one keeps me coming back.",
-      author: "Michael R., English Teacher",
+      quote: "Clean design. Doesn't suck. Unlike most vocab apps I've tried. AND FREE.",
+      author: "m9ncrft",
       rating: 5
     },
     {
-      quote: "I've been using Vocab for three months and have already added over 200 words to my vocabulary. Highly recommended!",
-      author: "David L., Business Professional",
+      quote: "My friends stopped listening. fuck.",
+      author: "Calebb9850",
       rating: 5
     }
   ];
@@ -78,10 +85,27 @@ const Testimonials: React.FC = () => {
     };
   }, []);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const subject = encodeURIComponent("New Testimonial Submission");
+    const body = encodeURIComponent(
+      `Name: ${formData.name}\nEmail: ${formData.email}\nTestimonial: ${formData.testimonial}`
+    );
+    window.location.href = `mailto:help.vocabboost@gmail.com?subject=${subject}&body=${body}`;
+    setShowModal(false);
+    setFormData({ name: '', email: '', testimonial: '' });
+  };
+
   return (
     <section className="testimonials">
       <div className="container">
         <h2 className="section-title" data-aos="fade-up">What Our Users Say</h2>
+        <p className="drag-hint" data-aos="fade-up">Drag right to add your own!</p>
         <div className="testimonial-slider" ref={sliderRef} data-aos="fade-up" data-aos-delay="100">
           {testimonials.map((testimonial, index) => (
             <div key={index} className="testimonial">
@@ -92,8 +116,57 @@ const Testimonials: React.FC = () => {
               </div>
             </div>
           ))}
+          
+          <div className="testimonial add-testimonial" onClick={() => setShowModal(true)}>
+            <div className="plus-icon">+</div>
+            <div className="add-text">Add your own!</div>
+          </div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
+            <h3>Share Your Experience</h3>
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label htmlFor="name">Name</label>
+                <input 
+                  type="text" 
+                  id="name" 
+                  name="name" 
+                  value={formData.name} 
+                  onChange={handleInputChange} 
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input 
+                  type="email" 
+                  id="email" 
+                  name="email" 
+                  value={formData.email} 
+                  onChange={handleInputChange} 
+                  required 
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="testimonial">Your Testimonial</label>
+                <textarea 
+                  id="testimonial" 
+                  name="testimonial" 
+                  value={formData.testimonial} 
+                  onChange={handleInputChange} 
+                  required 
+                />
+              </div>
+              <button type="submit" className="submit-btn">Submit</button>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
