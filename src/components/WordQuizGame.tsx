@@ -22,6 +22,7 @@ const WordQuizGame: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
+  const [openDefinitions, setOpenDefinitions] = useState<number[]>([]);
   const [showExampleFor, setShowExampleFor] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [showSignInModal, setShowSignInModal] = useState(false);
@@ -88,6 +89,7 @@ const WordQuizGame: React.FC = () => {
     // Reset states for the new quiz
     setShowHint(false);
     setHintUsed(false);
+    setOpenDefinitions([]);
     setShowExampleFor(null);
     setResponseStartTime(Date.now());
 
@@ -186,19 +188,32 @@ const WordQuizGame: React.FC = () => {
 
   // Handle answer selection
   const handleAnswerClick = (index: number) => {
+    // If quiz is already answered, clicking an answer toggles its definition
     if (selectedAnswer !== null) {
-      // If an answer is already selected, show the definition for the clicked answer
-      setShowExampleFor(showExampleFor === index ? null : index);
-    } else {
-      // First time selecting an answer
-      setSelectedAnswer(index);
-      setAnsweredCount(prevCount => prevCount + 1);
+      setOpenDefinitions(prev => 
+        prev.includes(index) 
+          ? prev.filter(i => i !== index) 
+          : [...prev, index]
+      );
+      return;
+    }
 
-      if (isAuthenticated && currentWord) {
-        const isCorrect = answers[index].isCorrect;
-        const responseTimeMs = Date.now() - responseStartTime;
-        srs.service.updateWordStats(currentWord, isCorrect, responseTimeMs, hintUsed);
-      }
+    // First time selecting an answer for the current question
+    setSelectedAnswer(index);
+    setAnsweredCount(prevCount => prevCount + 1);
+
+    const isCorrect = answers[index].isCorrect;
+
+    if (isCorrect) {
+      setOpenDefinitions([index]);
+    } else {
+      const correctIndex = answers.findIndex(answer => answer.isCorrect);
+      setOpenDefinitions([index, correctIndex]);
+    }
+
+    if (isAuthenticated && currentWord) {
+      const responseTimeMs = Date.now() - responseStartTime;
+      srs.service.updateWordStats(currentWord, isCorrect, responseTimeMs, hintUsed);
     }
   };
 
@@ -226,11 +241,6 @@ const WordQuizGame: React.FC = () => {
     setupQuiz();
   };
 
-  // Handle example click
-  const handleExampleClick = (index: number) => {
-    setShowExampleFor(showExampleFor === index ? null : index);
-  };
-
   // Show loading state while authenticating
   if (authLoading) {
     return <div className="quiz-loading">Authenticating...</div>;
@@ -252,31 +262,33 @@ const WordQuizGame: React.FC = () => {
 
       <div className="quiz-container">
         <div className="question-section">
+          <p className="question-prompt">Choose the correct option:</p>
           <h2 className="question-word">{currentWord.word}</h2>
-          {selectedAnswer !== null && (
-            <p className="word-definition">{currentWord.definition}</p>
-          )}
-          <p className="question-prompt">Which word is a synonym for this?</p>
           
-          {showHint && (
-            <div className="hint-box">
-              <p><strong>Hint:</strong> {currentWord.exampleSentence && currentWord.exampleSentence.trim() ? currentWord.exampleSentence : 'No example available'}</p>
-            </div>
-          )}
-          
-          {!showHint && !selectedAnswer && (
-            <button 
-              className={`hint-button ${hintUsed ? 'used' : ''}`} 
-              onClick={handleHintClick}
-              disabled={hintUsed}
-              aria-label="Show hint"
-            >
-              <img src="/images/lightbulb-solid.svg" alt="Hint" />
-            </button>
-          )}
+          <div className="definition-container">
+            {!showHint && selectedAnswer === null && (
+              <button 
+                className="hint-button"
+                onClick={handleHintClick}
+                disabled={hintUsed}
+              >
+                Need a hint?
+              </button>
+            )}
+            
+            {showHint && selectedAnswer === null && (
+              <p className="word-definition">
+                {currentWord.exampleSentence && currentWord.exampleSentence.trim() ? currentWord.exampleSentence.toLowerCase() : 'no example available'}
+              </p>
+            )}
+
+            {selectedAnswer !== null && (
+              <p className="word-definition">{currentWord.definition}</p>
+            )}
+          </div>
         </div>
         
-        <div className="answers-section">
+        <div className={`answers-section ${selectedAnswer !== null ? 'answered' : ''}`}>
           {answers.map((answer, index) => (
             <div 
               key={index} 
@@ -298,21 +310,9 @@ const WordQuizGame: React.FC = () => {
                 {answer.word}
               </button>
               
-              {(selectedAnswer !== null || showExampleFor === index) && (
-                <div className="answer-details">
-                  <p className="answer-definition">{answer.definition}</p>
-                  {showExampleFor === index ? (
-                    <p className="example-sentence">{answer.exampleSentence}</p>
-                  ) : (
-                    <button 
-                      className="example-button"
-                      onClick={() => handleExampleClick(index)}
-                    >
-                      Example
-                    </button>
-                  )}
-                </div>
-              )}
+              <div className={`answer-details ${openDefinitions.includes(index) ? 'visible' : ''}`}>
+                <p className="answer-definition">{answer.definition}</p>
+              </div>
             </div>
           ))}
         </div>
