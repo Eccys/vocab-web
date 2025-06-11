@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import '../styles/WordQuizGame.css';
 import { useAuth } from '../services/AuthContext';
 import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
@@ -10,7 +10,10 @@ interface Answer {
   definition: string;
   exampleSentence: string;
   isCorrect: boolean;
-  originalWord?: WordWithSpacedRepetition;
+}
+
+interface Word extends WordWithSpacedRepetition {
+  //This interface already has all needed fields from WordWithSpacedRepetition
 }
 
 const WordQuizGame: React.FC = () => {
@@ -20,65 +23,67 @@ const WordQuizGame: React.FC = () => {
   const [showHint, setShowHint] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
   const [showExampleFor, setShowExampleFor] = useState<number | null>(null);
-  const [usedWords, setUsedWords] = useState<Set<string>>(new Set());
   const [answeredCount, setAnsweredCount] = useState(0);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState<number>(0);
-  const [currentWord, setCurrentWord] = useState<WordWithSpacedRepetition | null>(null);
+  const [currentWord, setCurrentWord] = useState<Word | null>(null);
 
-  // Get auth context
-  const { isAuthenticated } = useAuth();
-  
-  // Get spaced repetition context
-  const { service, words, isLoading, error: srError } = useSpacedRepetition();
+  // Get auth and spaced repetition context. This is the single source of truth for words and loading state.
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const srs = useSpacedRepetition();
 
-  // Shuffle array (Fisher-Yates algorithm)
-  const shuffleArray = <T,>(array: T[]): T[] => {
+  // Add a new useEffect to handle auth state changes gracefully
+  useEffect(() => {
+    // When auth state changes, reset the current word.
+    // This will trigger the setupQuiz effect to run again with the new word source from the context.
+    setCurrentWord(null);
+  }, [isAuthenticated]);
+
+  // Memoize the shuffle function to avoid recreating it on every render
+  const shuffleArray = useCallback(<T,>(array: T[]): T[] => {
     const newArray = [...array];
     for (let i = newArray.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
     }
     return newArray;
-  };
+  }, []);
 
-  // Setup quiz when context data is loaded
-  useEffect(() => {
-    if (!isLoading && words.length > 0) {
-      setupQuiz();
+  // Setup quiz with a random word
+  const setupQuiz = useCallback(() => {
+    let selectedWord: Word | null = null;
+    let wordSource = srs.words;
+
+    if (isAuthenticated) {
+      if (srs.words.length === 0) {
+        // Data is not ready, simply exit. The loading screen will remain.
+        return;
+      }
+      wordSource = srs.words;
+      // Logged-in user: use spaced repetition to select a word
+      const candidateWords = srs.service.selectWordsForQuiz(3);
+      if (candidateWords.length > 0) {
+        const randomIndex = Math.floor(Math.random() * candidateWords.length);
+        selectedWord = candidateWords[randomIndex];
+      } else {
+        // Fallback to a random word if no candidates
+        const randomIndex = Math.floor(Math.random() * srs.words.length);
+        selectedWord = srs.words[randomIndex];
+      }
+    } else {
+      // Guest user: get a random word
+      if (srs.words.length === 0) return;
+      const randomIndex = Math.floor(Math.random() * srs.words.length);
+      selectedWord = srs.words[randomIndex];
     }
-  }, [isLoading, words.length]);
 
-  // Get random words excluding used ones and the current word
-  const getRandomWords = (count: number, excludeWord?: string): WordWithSpacedRepetition[] => {
-    const availableWords = words.filter(
-      word => (!excludeWord || word.word !== excludeWord) && 
-              !usedWords.has(word.word)
-    );
-    
-    if (availableWords.length < count) {
-      // If we don't have enough unused words, just exclude the current word
-      return shuffleArray(words.filter(word => !excludeWord || word.word !== excludeWord))
-        .slice(0, count);
-    }
-    
-    return shuffleArray(availableWords).slice(0, count);
-  };
-
-  // Setup quiz with new question and answers
-  const setupQuiz = () => {
-    // Get a new word using the spaced repetition service
-    const quizWords = service.selectWordsForQuiz(1);
-    
-    if (quizWords.length === 0) {
-      console.error('No words available for quiz');
+    if (!selectedWord) {
+      // Could not select a word, which can happen if words are empty.
+      // Exit without changing state to prevent flicker.
       return;
     }
-    
-    const selectedWord = quizWords[0];
+
     setCurrentWord(selectedWord);
-    
-    console.log(`Setting up quiz for word: ${selectedWord.word}`);
     
     // Reset states for the new quiz
     setShowHint(false);
@@ -86,8 +91,7 @@ const WordQuizGame: React.FC = () => {
     setShowExampleFor(null);
     setResponseStartTime(Date.now());
 
-    // Choose which synonym to use as the correct answer (randomly)
-    // Or use the word itself if no synonyms are available
+    // Choose which synonym to use as the correct answer
     const hasSynonyms = selectedWord.synonym1 || selectedWord.synonym2 || selectedWord.synonym3;
     
     let correctWord: string;
@@ -104,9 +108,9 @@ const WordQuizGame: React.FC = () => {
       // Randomly pick one
       const synonymIndex = availableSynonyms[Math.floor(Math.random() * availableSynonyms.length)];
       
-      correctWord = selectedWord[`synonym${synonymIndex}` as keyof WordWithSpacedRepetition] as string;
-      correctDefinition = selectedWord[`synonym${synonymIndex}Definition` as keyof WordWithSpacedRepetition] as string;
-      correctExample = selectedWord[`synonym${synonymIndex}ExampleSentence` as keyof WordWithSpacedRepetition] as string;
+      correctWord = selectedWord[`synonym${synonymIndex}` as keyof Word] as string;
+      correctDefinition = selectedWord[`synonym${synonymIndex}Definition` as keyof Word] as string;
+      correctExample = selectedWord[`synonym${synonymIndex}ExampleSentence` as keyof Word] as string;
     } else {
       // No synonyms, use the word itself
       correctWord = selectedWord.word;
@@ -114,67 +118,71 @@ const WordQuizGame: React.FC = () => {
       correctExample = selectedWord.exampleSentence;
     }
 
-    // Add current word to used set
-    const newUsedWords = new Set(usedWords);
-    newUsedWords.add(selectedWord.word);
-    setUsedWords(newUsedWords);
+    // Generate wrong answers from other words
+    const wrongAnswers: Answer[] = [];
+    const wordsToExclude = new Set<string>([selectedWord.word, correctWord]);
 
-    // Get 3 random incorrect words for options
-    const incorrectWords = getRandomWords(3, selectedWord.word);
-    
-    // Create answer options
+    // 1. Prioritize words from the same category
+    const sameCategoryCandidates = wordSource.filter(
+      (word) => word.category === selectedWord.category && !wordsToExclude.has(word.word)
+    );
+    const shuffledSameCategory = shuffleArray(sameCategoryCandidates);
+
+    for (const wrongWord of shuffledSameCategory) {
+      if (wrongAnswers.length >= 3) break;
+      wrongAnswers.push({
+        word: wrongWord.word,
+        definition: wrongWord.definition,
+        exampleSentence: wrongWord.exampleSentence || 'No example available',
+        isCorrect: false,
+      });
+      wordsToExclude.add(wrongWord.word);
+    }
+
+    // 2. If not enough, fill with words from any category to ensure we have 4 options
+    if (wrongAnswers.length < 3) {
+      const otherCategoryCandidates = wordSource.filter(
+        (word) => !wordsToExclude.has(word.word)
+      );
+      const shuffledOtherCategory = shuffleArray(otherCategoryCandidates);
+
+      for (const wrongWord of shuffledOtherCategory) {
+        if (wrongAnswers.length >= 3) break;
+        wrongAnswers.push({
+          word: wrongWord.word,
+          definition: wrongWord.definition,
+          exampleSentence: wrongWord.exampleSentence || 'No example available',
+          isCorrect: false,
+        });
+        wordsToExclude.add(wrongWord.word);
+      }
+    }
+
+    // Create answer options with the correct answer
     let answerOptions: Answer[] = [
       {
         word: correctWord,
         definition: correctDefinition,
         exampleSentence: correctExample || 'No example available',
-        isCorrect: true,
-        originalWord: selectedWord
+        isCorrect: true
       },
-      ...incorrectWords.map(word => ({
-        word: word.word,
-        definition: word.definition,
-        exampleSentence: word.exampleSentence || 'No example available',
-        isCorrect: false,
-        originalWord: word
-      }))
+      ...wrongAnswers
     ];
 
     // Shuffle the answers
     answerOptions = shuffleArray(answerOptions);
-    
-    // Make sure there are no duplicates in the answer options
-    const wordSet = new Set<string>();
-    const finalAnswers: Answer[] = [];
-    
-    for (const option of answerOptions) {
-      if (!wordSet.has(option.word)) {
-        wordSet.add(option.word);
-        finalAnswers.push(option);
-      }
-    }
-    
-    // If we lost some answers due to duplicates, add more random words
-    while (finalAnswers.length < 4) {
-      const newWords = getRandomWords(4 - finalAnswers.length, selectedWord.word);
-      
-      for (const word of newWords) {
-        if (!wordSet.has(word.word) && finalAnswers.length < 4) {
-          wordSet.add(word.word);
-          finalAnswers.push({
-            word: word.word,
-            definition: word.definition,
-            exampleSentence: word.exampleSentence || 'No example available',
-            isCorrect: false,
-            originalWord: word
-          });
-        }
-      }
-    }
-    
-    setAnswers(finalAnswers);
+    setAnswers(answerOptions);
     setSelectedAnswer(null);
-  };
+  }, [shuffleArray, isAuthenticated, srs.service, srs.words]);
+        
+  // Initialize quiz once words are loaded, and only if no quiz is active
+  useEffect(() => {
+    // Only set up the quiz if data is loaded from the context and there's no word currently displayed.
+    // This prevents re-running the setup unnecessarily and causing word flickering.
+    if (!srs.isLoading && srs.words.length > 0 && !currentWord) {
+    setupQuiz();
+    }
+  }, [setupQuiz, srs.isLoading, srs.words, currentWord]);
 
   // Handle answer selection
   const handleAnswerClick = (index: number) => {
@@ -185,23 +193,11 @@ const WordQuizGame: React.FC = () => {
       // First time selecting an answer
       setSelectedAnswer(index);
       setAnsweredCount(prevCount => prevCount + 1);
-      
-      // Calculate response time
-      const responseTimeMs = Date.now() - responseStartTime;
-      
-      if (currentWord && answers[index]) {
-        // Get whether the answer was correct
+
+      if (isAuthenticated && currentWord) {
         const isCorrect = answers[index].isCorrect;
-        
-        // Update word stats in the spaced repetition service
-        service.updateWordStats(
-          currentWord,
-          isCorrect,
-          responseTimeMs,
-          hintUsed
-        );
-        
-        console.log(`Answer recorded: ${isCorrect ? 'correct' : 'incorrect'}, time: ${responseTimeMs}ms, hint: ${hintUsed}`);
+        const responseTimeMs = Date.now() - responseStartTime;
+        srs.service.updateWordStats(currentWord, isCorrect, responseTimeMs, hintUsed);
       }
     }
   };
@@ -214,12 +210,8 @@ const WordQuizGame: React.FC = () => {
 
   // Move to next question
   const handleNextQuestion = () => {
-    // Don't show sign-in modal if user is already authenticated
-    if (answeredCount === 5 && !isAuthenticated) {
-      setShowSignInModal(true);
-    } else {
-      setupQuiz();
-    }
+    // Just setup a new quiz without showing sign-in modal
+    setupQuiz();
   };
 
   // Handle continuing without sign-in (used by AuthModal)
@@ -239,15 +231,13 @@ const WordQuizGame: React.FC = () => {
     setShowExampleFor(showExampleFor === index ? null : index);
   };
 
-  if (isLoading) {
-    return <div className="quiz-loading">Loading quiz questions...</div>;
+  // Show loading state while authenticating
+  if (authLoading) {
+    return <div className="quiz-loading">Authenticating...</div>;
   }
 
-  if (srError) {
-    return <div className="quiz-error">{srError}</div>;
-  }
-  
-  if (!currentWord) {
+  // Show loading state while fetching words from the context
+  if (srs.isLoading || !currentWord) {
     return <div className="quiz-loading">Preparing quiz questions...</div>;
   }
 
@@ -270,7 +260,7 @@ const WordQuizGame: React.FC = () => {
           
           {showHint && (
             <div className="hint-box">
-              <p><strong>Hint:</strong> {currentWord.exampleSentence || 'No example available'}</p>
+              <p><strong>Hint:</strong> {currentWord.exampleSentence && currentWord.exampleSentence.trim() ? currentWord.exampleSentence : 'No example available'}</p>
             </div>
           )}
           
@@ -337,4 +327,4 @@ const WordQuizGame: React.FC = () => {
   );
 };
 
-export default WordQuizGame; 
+export default React.memo(WordQuizGame); 
