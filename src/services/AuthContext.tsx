@@ -28,27 +28,52 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [authInitialized, setAuthInitialized] = useState<boolean>(false);
 
   // Set up the auth state listener
   useEffect(() => {
-    console.log("Setting up auth state listener...");
-    const unsubscribe = onAuthStateChange((user) => {
-      console.log("Auth state changed:", user ? "User signed in" : "No user");
-      setCurrentUser(user);
-      setLoading(false);
-    });
-
-    // Check for current user on mount
-    getCurrentUser().then(user => {
-      if (user && !currentUser) {
-        console.log("Found existing user session on mount:", user.uid);
-        setCurrentUser(user);
+    let authStateUnsubscribe: () => void;
+    
+    const setupAuth = async () => {
+      console.log("Setting up auth state listener...");
+      
+      // First check for current user synchronously
+      try {
+        const user = await getCurrentUser();
+        if (user) {
+          console.log("Found existing user session on initialization:", user.uid);
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.error("Error checking current user:", error);
       }
-      setLoading(false);
-    });
-
-    return unsubscribe;
+      
+      // Then set up the auth state listener for future changes
+      authStateUnsubscribe = onAuthStateChange((user) => {
+        console.log("Auth state changed:", user ? "User signed in" : "No user");
+        setCurrentUser(user);
+        setLoading(false);
+        setAuthInitialized(true);
+      });
+    };
+    
+    setupAuth();
+    
+    // Clean up on unmount
+    return () => {
+      if (authStateUnsubscribe) {
+        authStateUnsubscribe();
+      }
+    };
   }, []);
+
+  // If user was already set in the first check, make sure loading is set to false
+  useEffect(() => {
+    if (currentUser && loading && !authInitialized) {
+      console.log("User already authenticated, setting loading to false");
+      setLoading(false);
+    }
+  }, [currentUser, loading, authInitialized]);
 
   const signIn = {
     withGoogle: async () => {

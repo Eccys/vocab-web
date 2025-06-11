@@ -86,12 +86,19 @@ let auth;
 // Initialize Firebase and set up auth persistence
 const initializeFirebaseApp = async () => {
   try {
+    console.log('INITIALIZING FIREBASE APP');
     // Try to load the config first
     const config = await loadFirebaseConfig();
     
     // Initialize once with the proper config
     app = initializeApp(config);
     auth = getAuth(app);
+    
+    console.log('Firebase app initialized with config:', { 
+      projectId: config.projectId,
+      authDomain: config.authDomain,
+      appId: config.appId ? 'provided' : 'missing'
+    });
     
     // Set persistent auth state to LOCAL (persists even when browser is closed)
     try {
@@ -103,6 +110,14 @@ const initializeFirebaseApp = async () => {
     
     // Set auth.useDeviceLanguage() to use the default browser language
     auth.useDeviceLanguage();
+    
+    // Check if there's already a user logged in
+    const currentUser = auth.currentUser;
+    console.log('Current user at initialization:', {
+      authenticated: !!currentUser,
+      userId: currentUser?.uid || 'none',
+      email: currentUser?.email || 'none'
+    });
     
     // Only initialize Firestore when explicitly needed
     console.log('Automatic Firestore initialization disabled');
@@ -137,7 +152,9 @@ const firebaseInitPromise = initializeFirebaseApp();
 
 // Helper function to get the initialized auth
 const getInitializedAuth = async () => {
+  console.debug('Getting initialized auth');
   const { auth: initializedAuth } = await firebaseInitPromise;
+  console.debug('Retrieved initialized auth, currentUser:', initializedAuth.currentUser?.email || 'none');
   return initializedAuth;
 };
 
@@ -226,26 +243,59 @@ export const signOutUser = async () => {
 // Get current user
 export const getCurrentUser = async (): Promise<User | null> => {
   // Get the initialized auth
+  console.debug('getCurrentUser called - waiting for auth initialization');
   const initializedAuth = await getInitializedAuth();
-  return initializedAuth.currentUser;
+  
+  const user = initializedAuth.currentUser;
+  console.debug('getCurrentUser result:', {
+    authenticated: !!user,
+    userId: user?.uid || 'none',
+    email: user?.email || 'none',
+    timestamp: new Date().toISOString(),
+  });
+  
+  return user;
 };
 
 // Listen for auth state changes
 export const onAuthStateChange = (callback: (user: User | null) => void) => {
   // Since this is called early during app initialization, we need to handle the promise
+  console.debug('Setting up auth state listener');
+  
+  let unsubscribe: () => void = () => {};
+  
   firebaseInitPromise.then(({ auth: initializedAuth }) => {
-    return onAuthStateChanged(initializedAuth, (user) => {
-      console.log("Firebase auth state changed:", {
+    console.debug('Firebase init promise resolved, setting up auth state change listener');
+    unsubscribe = onAuthStateChanged(initializedAuth, (user) => {
+      console.log("FIREBASE AUTH STATE CHANGED:", {
         authenticated: !!user,
         userId: user?.uid || 'none',
-        email: user?.email || 'none'
+        email: user?.email || 'none',
+        emailVerified: user?.emailVerified || false,
+        timestamp: new Date().toISOString(),
+        authInstance: initializedAuth.name
       });
       callback(user);
     });
+    
+    // Log current user after listener is set up
+    const currentUser = initializedAuth.currentUser;
+    console.debug('Current user after setting up listener:', {
+      authenticated: !!currentUser,
+      userId: currentUser?.uid || 'none',
+      email: currentUser?.email || 'none'
+    });
+    
+    return unsubscribe;
+  }).catch(error => {
+    console.error('Error setting up auth state listener:', error);
   });
   
   // Return a no-op unsubscribe function in case the promise hasn't resolved yet
-  return () => {};
+  return () => {
+    console.debug('Unsubscribing from auth state changes');
+    unsubscribe();
+  };
 };
 
 export default firebaseInitPromise; // Export the promise to allow waiting for initialization 
