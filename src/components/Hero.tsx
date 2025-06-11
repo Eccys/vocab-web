@@ -64,14 +64,14 @@ const Hero: React.FC = () => {
     <section className="hero" id="hero">
       <div className="container hero-container">
         <div className="hero-content" data-aos="fade-right">
-          <h1>Elevate Your Vocabulary <span className="gradient-text">One Word at a Time</span></h1>
-          <p className="subtitle">A free, open-source vocabulary builder that makes learning new words fun and effective with daily words, quizzes, and machine learning.</p>
+          <h1>Increase Your Vocabulary. Now. <span className="gradient-text">Press Play</span></h1>
+          <p className="subtitle">Press play to get started. Or see today's word. Android app available.</p>
           <div className="cta-buttons">
-            <Link to="/quiz" className="primary-btn play-now-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Link to="/quiz" className="primary-btn play-now-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <polygon points="5 3 19 12 5 21 5 3"></polygon>
               </svg>
-              Play Now
+              <span>Play Now</span>
             </Link>
             <Link to="/word-of-day" className="secondary-btn">See Today's Word</Link>
           </div>
