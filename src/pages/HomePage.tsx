@@ -11,7 +11,7 @@ import BackToTop from '../components/BackToTop';
 const HomePage: React.FC = () => {
   return (
     <>
-      <Header />
+      <Header variant="main" />
       <main>
         <Hero />
         <Features />
