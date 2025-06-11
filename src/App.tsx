@@ -2,12 +2,15 @@ import React, { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import AOS from 'aos';
 import { useAuth } from './services/AuthContext';
+import { SpacedRepetitionProvider } from './services/SpacedRepetitionContext';
 
 // Pages
 import HomePage from './pages/HomePage';
 import WordOfDayPage from './pages/WordOfDayPage';
 import QuizPage from './pages/QuizPage';
 import MigrationPage from './pages/MigrationPage';
+import StatisticsPage from './pages/StatisticsPage';
+import SavedWordsPage from './pages/SavedWordsPage';
 
 // Import AOS script for animations
 import 'aos/dist/aos.css';
@@ -16,8 +19,8 @@ import 'aos/dist/aos.css';
 AOS.init({
   duration: 800,
   easing: 'ease-in-out',
-  once: false,
-  mirror: true
+  once: true,
+  mirror: false
 });
 
 const App: React.FC = () => {
@@ -34,12 +37,16 @@ const App: React.FC = () => {
   }, [isAuthenticated, currentUser?.uid]);
   
   return (
+    <SpacedRepetitionProvider>
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/word-of-day" element={<WordOfDayPage />} />
       <Route path="/quiz" element={<QuizPage />} />
       <Route path="/data-migration" element={<MigrationPage />} />
+      <Route path="/statistics" element={<StatisticsPage />} />
+      <Route path="/saved-words" element={<SavedWordsPage />} />
     </Routes>
+    </SpacedRepetitionProvider>
   );
 };
 

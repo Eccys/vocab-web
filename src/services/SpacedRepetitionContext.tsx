@@ -34,11 +34,18 @@ export const SpacedRepetitionProvider: React.FC<{ children: React.ReactNode }> =
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { currentUser, isAuthenticated } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Load words when the component mounts or when user changes
   useEffect(() => {
     // Define an async function to handle initialization
     const initializeData = async () => {
+      if (isRefreshing) {
+        console.log("Refresh already in progress, skipping.");
+        return;
+      }
+      setIsRefreshing(true);
+
       try {
         console.log('SpacedRepetitionProvider: initializing data');
         console.log(`Auth state: isAuthenticated=${isAuthenticated}, userId=${currentUser?.uid || 'none'}`);
@@ -88,6 +95,7 @@ export const SpacedRepetitionProvider: React.FC<{ children: React.ReactNode }> =
         setError('Failed to load words. Please try again later.');
       } finally {
         setIsLoading(false);
+        setIsRefreshing(false);
       }
     };
     
