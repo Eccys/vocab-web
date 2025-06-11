@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/Header.css';
-import { Home, Download, Menu, X, BookOpenText, UserCircle2, LogOut, ChevronDown, Bookmark } from 'lucide-react';
+import { Home, Download, Menu, X, BookOpenText, UserCircle2, LogOut, ChevronDown, Bookmark, BarChart2, Play, User } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
+import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
+import { UserStats } from '../services/SpacedRepetitionService';
 import AuthModal from './AuthModal';
-import { User } from 'firebase/auth';
+import { User as FirebaseUser } from 'firebase/auth';
 import { getCurrentUser } from '../services/FirebaseService';
 
 // Define the navigation items structure
@@ -25,7 +27,11 @@ interface SectionInfo {
   height: number;
 }
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  variant?: 'main' | 'app' | 'landing';
+}
+
+const Header: React.FC<HeaderProps> = ({ variant = 'landing' }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -40,12 +46,15 @@ const Header: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null); // Ref for the button
   
   // Get auth context
   const { isAuthenticated, currentUser, signOut } = useAuth();
+  const srs = useSpacedRepetition();
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   
   // Local state to track user state for immediate UI updates
-  const [localUser, setLocalUser] = useState<User | null>(currentUser);
+  const [localUser, setLocalUser] = useState<FirebaseUser | null>(currentUser);
   
   // Update local state immediately when currentUser changes
   useEffect(() => {
@@ -61,12 +70,18 @@ const Header: React.FC = () => {
     // Update local state immediately
     setLocalUser(currentUser);
   }, [isAuthenticated, currentUser]);
+
+  useEffect(() => {
+    if (isAuthenticated && srs.words.length > 0) {
+      setUserStats(srs.service.getStats());
+    }
+  }, [isAuthenticated, srs.words, srs.service]);
   
-  // Check if we're on the quiz page
-  const isQuizPage = location.pathname === '/quiz';
+  // Check if we're on an app page
+  const isAppPage = variant === 'app';
   
-  // Define navigation items
-  const navItems: NavItem[] = [
+  // Define navigation items based on variant
+  const mainNavItems: NavItem[] = [
     {
       name: 'Home',
       url: '/#hero',
@@ -87,6 +102,29 @@ const Header: React.FC = () => {
     }
   ];
 
+  const appNavItems: NavItem[] = [
+    {
+      name: 'Play',
+      url: '/quiz',
+      icon: <Play size={18} strokeWidth={2.5} />,
+      sectionId: 'quiz'
+    },
+    {
+      name: 'Stats',
+      url: '/statistics',
+      icon: <BarChart2 size={18} strokeWidth={2.5} />,
+      sectionId: 'statistics'
+    },
+    {
+      name: 'Bookmarks',
+      url: '/saved-words',
+      icon: <Bookmark size={18} strokeWidth={2.5} />,
+      sectionId: 'saved-words'
+    }
+  ];
+
+  const navItems = isAppPage ? appNavItems : mainNavItems;
+  
   // Clean up navigation timer on unmount
   useEffect(() => {
     return () => {
@@ -403,12 +441,12 @@ const Header: React.FC = () => {
   };
 
   // Handle auth success
-  const handleAuthSuccess = () => {
+  const handleAuthSuccess = async () => {
     // Set modal closed state
     setShowAuthModal(false);
     
     // Set local user immediately (don't wait for context to update)
-    const current = getCurrentUser();
+    const current = await getCurrentUser();
     if (current && !localUser) {
       setLocalUser(current);
     }
@@ -419,9 +457,30 @@ const Header: React.FC = () => {
     setShowAuthModal(false);
   };
   
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is outside the dropdown AND the button
+      if (
+        showProfileDropdown &&
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target as Node) &&
+        profileButtonRef.current &&
+        !profileButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowProfileDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileDropdown]);
+
   // Toggle profile dropdown
   const toggleProfileDropdown = () => {
-    setShowProfileDropdown(!showProfileDropdown);
+    setShowProfileDropdown(prev => !prev);
   };
   
   // Handle sign out
@@ -452,7 +511,34 @@ const Header: React.FC = () => {
             ref={menuRef}
           >
             {navItems.map((item) => {
-              const isActive = activeTab === item.name;
+              const isActive = isAppPage 
+                ? location.pathname === item.url 
+                : activeTab === item.name;
+
+              if (isAppPage) {
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.url}
+                    className={`nav-item ${isActive ? 'active' : ''}`}
+                  >
+                    <span className="nav-icon">{item.icon}</span>
+                    <span className="nav-text">{item.name}</span>
+                    <div className="nav-indicator-container"></div>
+                    {isActive && (
+                      <motion.div
+                        layoutId="navbar-active-indicator"
+                        className="nav-indicator"
+                        layout="position"
+                        initial={false}
+                        transition={{ type: "tween", duration: 0.25, ease: "easeInOut" }}
+                      >
+                        <div className="nav-glow"></div>
+                      </motion.div>
+                    )}
+                  </Link>
+                );
+              }
               
               return (
                 <a 
@@ -491,7 +577,7 @@ const Header: React.FC = () => {
         </div>
         
         <div className="header-right">
-          {isQuizPage ? (
+          {isAppPage ? (
             <>
               {/* Use localUser for immediate UI updates */}
               {localUser ? (
@@ -499,6 +585,7 @@ const Header: React.FC = () => {
                   <button 
                     className="user-profile"
                     onClick={toggleProfileDropdown}
+                    ref={profileButtonRef}
                   >
                     <UserCircle2 size={20} />
                     <span className="user-name">{localUser.displayName || localUser.email?.split('@')[0] || 'User'}</span>
@@ -515,22 +602,27 @@ const Header: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="profile-stats">
-                        <div className="stat-item">
-                          <span className="stat-value">42</span>
-                          <span className="stat-label">Words Learned</span>
+                      <div className="user-dropdown-stats">
+                        <div className="user-dropdown-stat">
+                          <span className="user-dropdown-stat-value">{userStats?.wordsLearned ?? 0}</span>
+                          <span className="user-dropdown-stat-label">Words Learned</span>
                         </div>
-                        <div className="stat-item">
-                          <span className="stat-value">7</span>
-                          <span className="stat-label">Day Streak</span>
+                        <div className="user-dropdown-stat">
+                          <span className="user-dropdown-stat-value">{userStats?.dayStreak ?? 0}</span>
+                          <span className="user-dropdown-stat-label">Day Streak</span>
                         </div>
                       </div>
                       
                       <div className="profile-actions">
-                        <button className="profile-action-btn">
+                        <Link to="/saved-words" className="profile-action-btn">
                           <Bookmark size={16} />
                           <span>Saved Words</span>
-                        </button>
+                        </Link>
+
+                        <Link to="/statistics" className="profile-action-btn">
+                          <BarChart2 size={16} />
+                          <span>Statistics</span>
+                        </Link>
                         
                         <button className="profile-action-btn logout-btn" onClick={handleSignOut}>
                           <LogOut size={16} />
