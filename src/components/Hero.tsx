@@ -64,7 +64,7 @@ const Hero: React.FC = () => {
     <section className="hero" id="hero">
       <div className="container hero-container">
         <div className="hero-content" data-aos="fade-right">
-          <h1>Increase Your Vocabulary. Now. <span className="gradient-text">Press Play</span></h1>
+          <h1>Boost Your Vocabulary. Now. <span className="gradient-text">Press Play</span></h1>
           <p className="subtitle">Press play to get started. Or see today's word. Android app available.</p>
           <div className="cta-buttons">
             <Link to="/quiz" className="primary-btn play-now-btn" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
