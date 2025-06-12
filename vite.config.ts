@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 
 export default defineConfig({
   plugins: [react()],
-  base: './', // Make sure this is set correctly
+  base: '/vocab-web/',
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
