@@ -282,7 +282,6 @@
   gap: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 12px;
 }
 
 .profile-info {
@@ -308,7 +307,25 @@
   white-space: nowrap;
 }
 
-.profile-stats {
+/* Re-introduce styles for the main stats page, but make them specific */
+.stats-page-value {
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.profile-stats, .stat-item, .stat-value, .stat-label {
+  /* These classes are deprecated but should not be hidden */
+  display: revert; /* Reverts to browser default instead of hiding */
+}
+
+/* New, correctly-scoped classes for the dropdown stats */
+.user-dropdown-stats {
   display: flex;
   justify-content: space-around;
   padding: 12px 0;
@@ -316,24 +333,26 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stat-item {
+.user-dropdown-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.stat-value {
-  font-size: 1.2rem;
+.user-dropdown-stat-value {
+  font-size: 1.25rem; /* Correct, smaller size */
   font-weight: 700;
   background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-.stat-label {
+.user-dropdown-stat-label {
   font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .profile-actions {
