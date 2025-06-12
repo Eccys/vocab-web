@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/WordOfDay.css';
 import WordQuiz from './WordQuiz';
-
-// Sample word data
-const wordData = {
-  word: 'Ephemeral',
-  type: 'adjective',
-  pronunciation: 'ih-FEM-er-uhl',
-  definition: 'Lasting for a very short time',
-  example: 'The beauty of cherry blossoms is ephemeral, lasting only a few days.',
-  synonyms: ['fleeting', 'transitory', 'momentary', 'brief', 'short-lived'],
-  antonyms: ['permanent', 'enduring', 'eternal', 'everlasting', 'perpetual']
-};
+import DictionaryService, { WordData } from '../services/DictionaryService';
 
 const WordOfDay: React.FC = () => {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [wordData, setWordData] = useState<WordData | null>(null);
+  const [previousWords, setPreviousWords] = useState<{ word: string }[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [showQuiz, setShowQuiz] = useState(false);
-  
+
   useEffect(() => {
-    // Set to loaded immediately on mount
-    setIsLoaded(true);
+    const fetchWord = async () => {
+      try {
+        const data = await DictionaryService.getWordOfTheDay();
+        setWordData(data);
+        const prevWords = DictionaryService.getPreviousWords(5);
+        setPreviousWords(prevWords);
+      } catch (err) {
+        setError("Failed to fetch word of the day. Please try again later.");
+        console.error(err);
+      }
+    };
+
+    fetchWord();
   }, []);
 
   // Generate Merriam-Webster dictionary URL for the current word
@@ -38,13 +41,40 @@ const WordOfDay: React.FC = () => {
   const handleCloseQuiz = () => {
     setShowQuiz(false);
   };
+
+  if (error) {
+    return (
+      <section className="word-of-day-section">
+        <div className="container">
+          <h1 className="section-title">Word of the Day</h1>
+          <div className="word-of-day-card">
+            <p>{error}</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+  
+  if (!wordData) {
+    return (
+      <section className="word-of-day-section">
+        <div className="container">
+          <h1 className="section-title">Word of the Day</h1>
+          <div className="word-of-day-card" style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <div className="loading-spinner"></div>
+            <p>Loading word of the day...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
   
   return (
     <section className="word-of-day-section">
       <div className="container">
         <h1 className="section-title">Word of the Day</h1>
         
-        <div className={`word-of-day-card ${isLoaded ? 'loaded' : ''}`}>
+        <div className="word-of-day-card loaded">
           <div className="word-header">
             <h2>{wordData.word}</h2>
             <p className="word-type"><em>{wordData.type}</em> | <span className="pronunciation">{wordData.pronunciation}</span></p>
@@ -64,20 +94,24 @@ const WordOfDay: React.FC = () => {
             <div className="related-words">
               <div className="synonyms">
                 <h3>Synonyms</h3>
-                <ul>
-                  {wordData.synonyms.map((synonym, index) => (
-                    <li key={index}>{synonym}</li>
-                  ))}
-                </ul>
+                {wordData.synonyms.length > 0 ? (
+                  <ul>
+                    {wordData.synonyms.map((synonym, index) => (
+                      <li key={index}>{synonym}</li>
+                    ))}
+                  </ul>
+                ) : <p>No synonyms found.</p>}
               </div>
               
               <div className="antonyms">
                 <h3>Antonyms</h3>
+                {wordData.antonyms.length > 0 ? (
                 <ul>
                   {wordData.antonyms.map((antonym, index) => (
                     <li key={index}>{antonym}</li>
                   ))}
                 </ul>
+                ) : <p>No antonyms found.</p>}
               </div>
             </div>
           </div>
@@ -100,11 +134,9 @@ const WordOfDay: React.FC = () => {
         <div className="previous-words">
           <h3>Previous Words</h3>
           <div className="word-list">
-            <div className="word-item">Serendipity</div>
-            <div className="word-item">Mellifluous</div>
-            <div className="word-item">Ubiquitous</div>
-            <div className="word-item">Panacea</div>
-            <div className="word-item">Eloquent</div>
+            {previousWords.map((pword, index) => (
+              <div className="word-item" key={index}>{pword.word}</div>
+            ))}
           </div>
         </div>
       </div>
@@ -121,4 +153,4 @@ const WordOfDay: React.FC = () => {
   );
 };
 
-export default WordOfDay; 
+export default WordOfDay;

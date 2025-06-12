@@ -1,26 +1,45 @@
+/// <reference types="vite/client" />
+import dailyWords from '../../public/dailywords.json';
+import words from '../../public/words.json';
+
 // Dictionary and Thesaurus API service
 // This service handles all interactions with the Merriam-Webster APIs
 
-// Environment variables - these should be loaded from .env file
-// Using placeholder values here, real keys will be loaded from .env
-let DICTIONARY_API_KEY = 'your-dictionary-api-key';
-let THESAURUS_API_KEY = 'your-thesaurus-api-key';
+const safeFetchAndParseJson = async (url: string) => {
+  try {
+    const response = await fetch(url);
+    // Don't throw for "Not Found" or other non-200 responses that might have a body
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`API request failed with status ${response.status}: ${errorText}`, `URL: ${url}`);
+        // Mimic API behavior for suggestions, which is an array of strings
+        return [errorText || `HTTP error! status: ${response.status}`];
+    }
+    const text = await response.text();
+    if (!text) {
+        return []; // Nothing found, return empty array as per API for no results
+    }
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        console.warn(`API returned non-JSON response: "${text}"`, `URL: ${url}`);
+        // This case handles things like "Invalid API key" which is returned as plain text
+        // The existing logic often checks `typeof data[0] === 'string'`, so this fits.
+        return [text];
+    }
+  } catch (networkError) {
+      console.error("Network error when fetching from API:", networkError, `URL: ${url}`);
+      return []; // Return empty array on network errors
+  }
+};
+
+// API Keys from Environment Variables
+const DICTIONARY_API_KEY = import.meta.env.VITE_DICTIONARY_API_KEY;
+const THESAURUS_API_KEY = import.meta.env.VITE_THESAURUS_API_KEY;
 
 // Cache to track used words and prevent repetition
 const usedWordsCache: Set<string> = new Set();
 const MAX_CACHE_SIZE = 100;
-
-// Initialize API keys from environment variables if available
-// This will happen during runtime, so the actual keys won't be in the source code
-export const initApiKeys = () => {
-  // Access environment variables safely
-  if (import.meta.env.VITE_DICTIONARY_API_KEY) {
-    DICTIONARY_API_KEY = import.meta.env.VITE_DICTIONARY_API_KEY;
-  }
-  if (import.meta.env.VITE_THESAURUS_API_KEY) {
-    THESAURUS_API_KEY = import.meta.env.VITE_THESAURUS_API_KEY;
-  }
-};
 
 // Add a word to the used words cache
 const addToUsedWordsCache = (word: string) => {
@@ -44,10 +63,9 @@ const hasBeenUsedRecently = (word: string): boolean => {
 // Thesaurus API
 export const getSynonyms = async (word: string): Promise<string[]> => {
   try {
-    const response = await fetch(
+    const data = await safeFetchAndParseJson(
       `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${word}?key=${THESAURUS_API_KEY}`
     );
-    const data = await response.json();
     
     // Check if we got valid results
     if (!data || data.length === 0 || typeof data[0] === 'string') {
@@ -73,132 +91,114 @@ export const getSynonyms = async (word: string): Promise<string[]> => {
   }
 };
 
-// Dictionary API - Get random words of the same part of speech using the API
+// Get random words of the same part of speech from the local words.json
 export const getRandomWordsOfSamePartOfSpeech = async (
   partOfSpeech: string,
   count: number = 3
 ): Promise<string[]> => {
-  try {
-    // Map the part of speech to Merriam-Webster's format
-    const normalizedPos = partOfSpeech.toLowerCase();
-    const pos = normalizedPos === 'adj' || normalizedPos === 'adjective' ? 'adjective' : 
-                normalizedPos === 'adv' || normalizedPos === 'adverb' ? 'adverb' : 
-                normalizedPos === 'v' || normalizedPos === 'verb' ? 'verb' : 'noun';
-    
-    // Expanded starter words for each part of speech to get related words
-    const starterWords = {
-      noun: [
-        'time', 'person', 'way', 'day', 'thing', 'world', 'life', 'hand', 'part', 'child',
-        'place', 'work', 'book', 'case', 'water', 'money', 'group', 'fact', 'music', 'tree'
-      ],
-      verb: [
-        'be', 'have', 'do', 'say', 'get', 'make', 'go', 'know', 'take', 'see',
-        'come', 'think', 'look', 'want', 'give', 'use', 'find', 'tell', 'ask', 'work'
-      ],
-      adjective: [
-        'good', 'new', 'first', 'last', 'long', 'great', 'little', 'own', 'other', 'old',
-        'right', 'big', 'high', 'different', 'small', 'large', 'next', 'early', 'young', 'important'
-      ],
-      adverb: [
-        'up', 'so', 'out', 'just', 'now', 'how', 'then', 'more', 'also', 'here',
-        'well', 'only', 'very', 'even', 'back', 'there', 'down', 'still', 'quickly', 'slowly'
-      ]
-    };
-    
-    // Random timestamps to prevent caching
-    const timestamp = Date.now() + Math.floor(Math.random() * 1000);
-    
-    // Choose 3 different seed words to increase variety
-    const seedWords = starterWords[pos as keyof typeof starterWords] || starterWords.noun;
-    const shuffledSeeds = shuffleArray([...seedWords]);
-    const seedsToUse = shuffledSeeds.slice(0, 3);
-    
-    // Collect words from multiple seed words
-    let allRelatedWords: string[] = [];
-    
-    for (const seedWord of seedsToUse) {
-      // Use a cache-busting parameter to prevent API caching
-      const response = await fetch(
-        `https://www.dictionaryapi.com/api/v3/references/collegiate/json/${seedWord}?key=${DICTIONARY_API_KEY}&t=${timestamp}`
-      );
-      const data = await response.json();
-      
-      if (!data || data.length === 0 || typeof data[0] === 'string') {
-        continue;
-      }
-      
-      // Extract words of the same part of speech from the response
-      const relatedWords: string[] = [];
-      
-      // Collect words from all entries
-      data.forEach((entry: any) => {
-        const entryPos = entry.fl ? entry.fl.toLowerCase() : '';
-        
-        if (entryPos && (entryPos.includes(pos) || pos.includes(entryPos))) {
-          // Add headword if it exists
-          if (entry.hwi && entry.hwi.hw) {
-            relatedWords.push(entry.hwi.hw.replace(/\*/g, ''));
-          }
-          
-          // Check for cross-references
-          if (entry.dros && Array.isArray(entry.dros)) {
-            entry.dros.forEach((dro: any) => {
-              if (dro.drp) {
-                relatedWords.push(dro.drp.replace(/\*/g, ''));
-              }
-            });
-          }
-          
-          // Add stems if they exist
-          if (entry.meta && entry.meta.stems && Array.isArray(entry.meta.stems)) {
-            relatedWords.push(...entry.meta.stems);
-          }
-          
-          // Add synonyms if they exist in shortdef
-          if (entry.shortdef && Array.isArray(entry.shortdef)) {
-            entry.shortdef.forEach((def: string) => {
-              // Extract words from definition that might be synonyms (words after ":")
-              const colonIndex = def.indexOf(':');
-              if (colonIndex !== -1) {
-                const potentialSynonyms = def.substring(colonIndex + 1).split(/,\s*/);
-                relatedWords.push(...potentialSynonyms.map(s => s.trim()));
-              }
-            });
-          }
-        }
-      });
-      
-      // Filter and add to our collection
-      const cleanedWords = [...new Set(relatedWords)]
-        .filter(word => word.length > 2)
-        .filter(word => /^[a-zA-Z]+$/.test(word))
-        .filter(word => !hasBeenUsedRecently(word)); // Skip recently used words
-      
-      allRelatedWords = [...allRelatedWords, ...cleanedWords];
-      
-      // If we have enough words already, stop making more API calls
-      if (allRelatedWords.length >= count * 2) {
-        break;
-      }
-    }
-    
-    // Shuffle and select the required number of words
-    const selectedWords = shuffleArray(allRelatedWords).slice(0, count);
-    
-    // Add the selected words to the used words cache
-    selectedWords.forEach(addToUsedWordsCache);
-    
-    // If we couldn't get enough words, use fallback
-    if (selectedWords.length < count) {
-      const fallbackWords = getFallbackWords(partOfSpeech, count - selectedWords.length);
-      return [...selectedWords, ...fallbackWords];
-    }
-    
-    return selectedWords;
-  } catch (error) {
-    console.error('Error fetching random words:', error);
-    return getFallbackWords(partOfSpeech, count);
+  const normalizedPos = partOfSpeech.toLowerCase();
+  const pos = normalizedPos === 'adj' ? 'adjective' :
+              normalizedPos === 'adv' ? 'adverb' :
+              normalizedPos === 'v' ? 'verb' : normalizedPos;
+
+  // Filter words from the local JSON by the normalized part of speech
+  const filteredWords = words
+    .filter(word => word.category.toLowerCase() === pos)
+    .map(word => word.word)
+    .filter(word => !hasBeenUsedRecently(word)); // Exclude recently used words
+
+  // If we don't have enough, use the fallback
+  if (filteredWords.length < count) {
+    const fallbackWords = getFallbackWords(partOfSpeech, count);
+    return shuffleArray(fallbackWords).slice(0, count);
   }
+
+  // Shuffle and get the required number of words
+  const selectedWords = shuffleArray(filteredWords).slice(0, count);
+  
+  // Add to cache
+  selectedWords.forEach(addToUsedWordsCache);
+
+  return selectedWords;
+};
+
+export interface WordData {
+  word: string;
+  type: string;
+  pronunciation: string;
+  definition: string;
+  example: string;
+  synonyms: string[];
+  antonyms: string[];
+}
+
+const getDayOfYear = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = (now.getTime() - start.getTime()) + ((start.getTimezoneOffset() - now.getTimezoneOffset()) * 60 * 1000);
+  const oneDay = 1000 * 60 * 60 * 24;
+  return Math.floor(diff / oneDay);
+};
+
+export const getWordOfTheDay = async (): Promise<WordData> => {
+  const dayOfYear = getDayOfYear();
+  const index = (dayOfYear - 1) % dailyWords.length;
+  const dailyWord = dailyWords[index];
+
+  try {
+    const data = await safeFetchAndParseJson(`https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${dailyWord.word}?key=${THESAURUS_API_KEY}`);
+
+    let synonyms: string[] = [];
+    let antonyms: string[] = [];
+
+    if (data && data.length > 0) {
+      const entry = data[0];
+      if (entry.meta && entry.meta.syns && entry.meta.syns.length > 0) {
+        synonyms = entry.meta.syns.flat().slice(0, 5);
+      }
+      if (entry.meta && entry.meta.ants && entry.meta.ants.length > 0) {
+        antonyms = entry.meta.ants.flat().slice(0, 5);
+      }
+    }
+    
+    return {
+      word: dailyWord.word,
+      type: dailyWord.category,
+      pronunciation: dailyWord.pronunciation,
+      definition: dailyWord.meaning,
+      example: dailyWord.example,
+      synonyms,
+      antonyms,
+    };
+  } catch (error) {
+    console.error("Failed to fetch word data from Merriam-Webster API:", error);
+    return {
+      word: dailyWord.word,
+      type: dailyWord.category,
+      pronunciation: dailyWord.pronunciation,
+      definition: dailyWord.meaning,
+      example: dailyWord.example,
+      synonyms: [],
+      antonyms: []
+    };
+  }
+};
+
+export const getPreviousWords = (days: number = 5): { word: string }[] => {
+  const previousWords: { word: string }[] = [];
+  const dayOfYear = getDayOfYear();
+  const totalWords = dailyWords.length;
+
+  for (let i = 1; i <= days; i++) {
+    const pastDayOfYear = dayOfYear - i;
+    // Handle wrapping around the year and the array
+    // The modulo operator in JS handles negative numbers correctly for this purpose
+    const index = ((pastDayOfYear - 1) % totalWords + totalWords) % totalWords;
+    if (dailyWords[index]) {
+      previousWords.push({ word: dailyWords[index].word });
+    }
+  }
+  return previousWords;
 };
 
 // Get fallback words when API fails
@@ -245,39 +245,6 @@ const getFallbackWords = (partOfSpeech: string, count: number): string[] => {
   selectedWords.forEach(addToUsedWordsCache);
   
   return selectedWords;
-};
-
-// Helper function to get related words for a given word and part of speech
-const getRelatedWords = async (word: string, partOfSpeech: string): Promise<string[]> => {
-  try {
-    const response = await fetch(
-      `https://www.dictionaryapi.com/api/v3/references/collegiate/json/${word}?key=${DICTIONARY_API_KEY}`
-    );
-    const data = await response.json();
-    
-    if (!data || data.length === 0 || typeof data[0] === 'string') {
-      return [];
-    }
-    
-    const relatedWords: string[] = [];
-    
-    data.forEach((entry: any) => {
-      const entryPos = entry.fl ? entry.fl.toLowerCase() : '';
-      
-      if (entryPos && (entryPos.includes(partOfSpeech) || partOfSpeech.includes(entryPos))) {
-        if (entry.meta && entry.meta.stems) {
-          relatedWords.push(...entry.meta.stems);
-        }
-      }
-    });
-    
-    return [...new Set(relatedWords)]
-      .filter(word => word.length > 2)
-      .filter(word => /^[a-zA-Z]+$/.test(word));
-  } catch (error) {
-    console.error('Error fetching related words:', error);
-    return [];
-  }
 };
 
 // Helper function to shuffle array
@@ -390,34 +357,31 @@ const getContrastingWords = async (
 ): Promise<string[]> => {
   try {
     // First try to get antonyms via the thesaurus API with cache busting
-    const response = await fetch(
+    const data = await safeFetchAndParseJson(
       `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${word}?key=${THESAURUS_API_KEY}&t=${timestamp}`
     );
-    const data = await response.json();
     
-    if (!data || data.length === 0 || typeof data[0] === 'string') {
-      return [];
-    }
-    
-    // Extract antonyms from the API response
-    const antonyms: string[] = [];
-    data.forEach((entry: any) => {
-      if (entry.meta && entry.meta.ants && entry.meta.ants.length > 0) {
-        entry.meta.ants.forEach((antGroup: string[]) => {
-          antonyms.push(...antGroup);
-        });
+    if (data && data.length > 0 && typeof data[0] !== 'string') {
+      // Extract antonyms from the API response
+      const antonyms: string[] = [];
+      data.forEach((entry: any) => {
+        if (entry.meta && entry.meta.ants && entry.meta.ants.length > 0) {
+          entry.meta.ants.forEach((antGroup: string[]) => {
+            antonyms.push(...antGroup);
+          });
+        }
+      });
+      
+      // Filter out antonyms that have been used recently
+      const filteredAntonyms = [...new Set(antonyms)]
+        .filter(ant => !hasBeenUsedRecently(ant));
+      
+      // If we found antonyms, return those
+      if (filteredAntonyms.length > 0) {
+        // Add these to the used words cache
+        filteredAntonyms.forEach(addToUsedWordsCache);
+        return filteredAntonyms;
       }
-    });
-    
-    // Filter out antonyms that have been used recently
-    const filteredAntonyms = [...new Set(antonyms)]
-      .filter(ant => !hasBeenUsedRecently(ant));
-    
-    // If we found antonyms, return those
-    if (filteredAntonyms.length > 0) {
-      // Add these to the used words cache
-      filteredAntonyms.forEach(addToUsedWordsCache);
-      return filteredAntonyms;
     }
     
     // If no antonyms found, try contrast seeds
@@ -436,10 +400,10 @@ const getContrastingWords = async (
     const seedList = contrastSeeds[pos as keyof typeof contrastSeeds] || contrastSeeds.noun;
     const seedWord = seedList[Math.floor(Math.random() * seedList.length)];
     
-    // Get related words to the contrast seed
-    const relatedWords = await getRelatedWords(seedWord, pos);
+    // Get synonyms of the contrast seed word
+    const relatedWords = await getSynonyms(seedWord);
     
-    return relatedWords.filter(word => !hasBeenUsedRecently(word));
+    return relatedWords.filter(w => !hasBeenUsedRecently(w));
   } catch (error) {
     console.error('Error fetching contrasting words:', error);
     return [];
@@ -447,8 +411,9 @@ const getContrastingWords = async (
 };
 
 export default {
-  initApiKeys,
   getSynonyms,
   getRandomWordsOfSamePartOfSpeech,
-  generateQuiz
+  generateQuiz,
+  getWordOfTheDay,
+  getPreviousWords,
 }; 
