@@ -23,9 +23,6 @@ const WordQuiz: React.FC<WordQuizProps> = ({ word, partOfSpeech, onClose }) => {
         setLoading(true);
         setApiMessage("Using Merriam-Webster API to generate quiz...");
         
-        // Initialize API keys
-        DictionaryService.initApiKeys();
-        
         // Generate quiz options
         const quiz = await DictionaryService.generateQuiz(word, partOfSpeech);
         
