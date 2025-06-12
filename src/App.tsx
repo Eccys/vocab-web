@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AOS from 'aos';
 import { useAuth } from './services/AuthContext';
 import { SpacedRepetitionProvider } from './services/SpacedRepetitionContext';
@@ -26,6 +26,8 @@ AOS.init({
 const App: React.FC = () => {
   // Get auth context for debugging
   const { currentUser, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   
   // Log auth state changes for debugging
   useEffect(() => {
@@ -35,6 +37,20 @@ const App: React.FC = () => {
       userId: currentUser?.uid || 'no-user'
     });
   }, [isAuthenticated, currentUser?.uid]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const redirectPath = params.get('p');
+    const redirectQuery = params.get('q');
+
+    if (redirectPath) {
+      let fullPath = redirectPath;
+      if (redirectQuery) {
+        fullPath += `?${redirectQuery.replace(/~and~/g, '&')}`;
+      }
+      navigate(fullPath, { replace: true });
+    }
+  }, [location, navigate]);
   
   return (
     <SpacedRepetitionProvider>
