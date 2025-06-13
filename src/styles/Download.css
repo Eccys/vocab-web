@@ -1,6 +1,6 @@
 .download {
   padding: 100px 0;
-  background: radial-gradient(circle at 50% 100%, rgba(106, 17, 203, 0.05) 0%, rgba(37, 117, 252, 0.05) 5%, transparent 45%);
+  background: transparent;
 }
 
 .download .container {
@@ -446,4 +446,23 @@
 
 .play-now-btn:hover svg {
   transform: scale(1.1);
+}
+
+/* Scoped fix: smaller stats tiles in Download demo phone */
+.screen.stats-screen .stats-grid {
+  gap: 12px;
+}
+.screen.stats-screen .stat-card {
+  aspect-ratio: 1 / 1;
+  padding: 4px 2px;
+  border-radius: 8px;
+  font-size: 90%;
+  min-width: 0;
+  min-height: 0;
+}
+.screen.stats-screen .stat-value {
+  font-size: 15px;
+}
+.screen.stats-screen .stat-label {
+  font-size: 8px;
 } 
