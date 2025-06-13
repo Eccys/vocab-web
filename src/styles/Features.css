@@ -1,6 +1,6 @@
 .features {
   padding: 100px 0;
-  background: radial-gradient(circle at 50% 25%, rgba(106, 17, 203, 0.05) 0%, rgba(37, 117, 252, 0.05) 5%, transparent 45%);
+  background: transparent;
   perspective: 1500px;
 }
 

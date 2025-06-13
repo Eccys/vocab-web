@@ -6,14 +6,15 @@
   z-index: 1000;
   padding: 16px 0;
   transition: all 0.3s ease;
-  background: rgba(18, 18, 18, 0.4);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .header.scrolled {
   background: rgba(18, 18, 18, 0.8);
   padding: 12px 0;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
 }
 
 .nav-container {
