@@ -3,7 +3,6 @@ import {
   collection, 
   getDocs, 
   doc, 
-  getDoc, 
   setDoc, 
   deleteDoc
 } from 'firebase/firestore';
@@ -47,7 +46,7 @@ export async function checkFirebaseConfiguration(): Promise<{
       // Try anonymous sign-in to verify auth is working
       try {
         console.log("Testing anonymous authentication...");
-        const anonymousAuth = await signInAnonymously(auth);
+        await signInAnonymously(auth);
         details.anonymousAuthWorking = true;
         console.log("Anonymous authentication successful");
       } catch (authError: any) {
@@ -124,7 +123,7 @@ export async function checkFirebaseConfiguration(): Promise<{
       const connectivityResults = await Promise.all(
         firebaseApis.map(async (url) => {
           try {
-            const response = await fetch(url, { 
+            await fetch(url, { 
               method: 'HEAD',
               mode: 'no-cors',
               cache: 'no-cache'
@@ -172,7 +171,7 @@ export async function checkFirebaseConfiguration(): Promise<{
 /**
  * Checks if the Firebase project is properly configured
  */
-export async function checkProjectConfiguration(userId?: string): Promise<string> {
+export async function checkProjectConfiguration(_userId?: string): Promise<string> {
   try {
     const results = await checkFirebaseConfiguration();
     
@@ -204,7 +203,7 @@ export async function checkProjectConfiguration(userId?: string): Promise<string
     
     // Network issues
     if (results.details.networkConnectivity && 
-        results.details.networkConnectivity.some(r => !r.success)) {
+        results.details.networkConnectivity.some((r: { success: boolean }) => !r.success)) {
       message += "- Check if your network blocks access to Google APIs\n";
       message += "- Verify that your firewall allows HTTPS connections to *.googleapis.com\n";
     }
