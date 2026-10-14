@@ -1,4 +1,4 @@
-import { getFirestore, enableIndexedDbPersistence, initializeFirestore as createFirestore, connectFirestoreEmulator, CACHE_SIZE_UNLIMITED, enableNetwork } from 'firebase/firestore';
+import { enableIndexedDbPersistence, initializeFirestore as createFirestore, connectFirestoreEmulator, CACHE_SIZE_UNLIMITED, enableNetwork } from 'firebase/firestore';
 import { getApp } from 'firebase/app';
 
 // Global variables for tracking instance and initialization state

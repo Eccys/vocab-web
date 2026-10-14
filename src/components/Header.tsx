@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import '../styles/Header.css';
-import { Home, Download, Menu, X, BookOpenText, UserCircle2, LogOut, ChevronDown, Bookmark, BarChart2, Play, User } from 'lucide-react';
+import { Home, Download, Menu, X, BookOpenText, UserCircle2, LogOut, ChevronDown, Bookmark, BarChart2, Play } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { useSpacedRepetition } from '../services/SpacedRepetitionContext';
 import { UserStats } from '../services/SpacedRepetitionService';

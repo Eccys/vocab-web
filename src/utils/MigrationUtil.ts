@@ -10,8 +10,7 @@ import {
   DocumentData,
   enableNetwork,
   disableNetwork,
-  serverTimestamp,
-  Timestamp
+  serverTimestamp
 } from 'firebase/firestore';
 import { getUserDocument, getUserWords, checkFirestoreAvailability } from './FirestoreUtil';
 
@@ -27,7 +26,7 @@ export async function migrateToSingleDocument(userId: string) {
     
     // Check network status
     try {
-      const networkStatus = await fetch('https://firestore.googleapis.com', { method: 'HEAD', mode: 'no-cors' });
+      await fetch('https://firestore.googleapis.com', { method: 'HEAD', mode: 'no-cors' });
       console.log('Network check to Firestore: Successful');
     } catch (error) {
       console.warn('Network check to Firestore: Failed - may be offline');

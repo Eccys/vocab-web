@@ -34,7 +34,6 @@ const safeFetchAndParseJson = async (url: string) => {
 };
 
 // API Keys from Environment Variables
-const DICTIONARY_API_KEY = import.meta.env.VITE_DICTIONARY_API_KEY;
 const THESAURUS_API_KEY = import.meta.env.VITE_THESAURUS_API_KEY;
 
 // Cache to track used words and prevent repetition

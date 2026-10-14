@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../services/AuthContext';
-import { migrateWordsToUserDocument } from '../utils/MigrationUtil';
 import { checkFirestoreAvailability } from '../utils/FirestoreUtil';
 import '../styles/DataMigration.css';
 import { getFirestoreInstance } from '../services/FirestoreConfig';
