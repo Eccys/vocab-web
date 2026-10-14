@@ -69,9 +69,11 @@ export const SpacedRepetitionProvider: React.FC<{ children: React.ReactNode }> =
             service.setUserId(currentUser.uid);
           } else {
             console.warn('No verified user after delay, using anonymous mode');
+            service.setUserId(null);
           }
         } else {
           console.log('No current user, using anonymous mode');
+          service.setUserId(null);
         }
         
         // Load the words
@@ -84,9 +86,9 @@ export const SpacedRepetitionProvider: React.FC<{ children: React.ReactNode }> =
           console.log('User is authenticated, forcing refresh from Firestore');
           const refreshedWords = await service.refreshFromFirestore(true);
           console.log(`After Firestore refresh: ${refreshedWords.length} words`);
-          setWords(refreshedWords);
+          setWords([...refreshedWords]);
         } else {
-          setWords(loadedWords);
+          setWords([...loadedWords]);
         }
         
         setError(null);
