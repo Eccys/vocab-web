@@ -74,28 +74,47 @@ export class SpacedRepetitionService {
     }
   }
   
+  // Reset in-memory spaced repetition progress on all loaded words
+  private resetWordProgress(): void {
+    this.words.forEach(word => {
+      word.easeFactor = 2.5;
+      word.interval = 0;
+      word.repetitionCount = 0;
+      word.lastReviewed = 0;
+      word.nextReviewDate = 0;
+      word.timesReviewed = 0;
+      word.timesCorrect = 0;
+      word.isBookmarked = false;
+    });
+  }
+
   // Set the user ID
-  public setUserId(userId: string) {
+  public setUserId(userId: string | null) {
     const previousId = this.userId;
-    this.userId = userId;
     console.log(`Set user ID in SpacedRepetitionService: ${userId}`);
     
-    // If the user ID changed, we need to handle the transition
+    // If the user ID changed, we need to handle the transition before mutating state
     if (previousId && previousId !== userId) {
       console.log(`User ID changed from ${previousId} to ${userId}`);
       
-      // We're changing users, so sync pending changes for previous user
+      // Sync pending changes for the previous user using their userId and a snapshot of their words
       if (this.pendingChanges.size > 0) {
-        console.log(`Syncing ${this.pendingChanges.size} pending changes for previous user before switching`);
-        // This is one of the few cases where we sync immediately rather than on page unload
-        this.syncToFirestore().then(() => {
-          // Clear the pending changes after syncing for the previous user
-          this.pendingChanges.clear();
-        }).catch(error => {
+        console.log(`Syncing ${this.pendingChanges.size} pending changes for previous user ${previousId} before switching`);
+        const pendingKeys = new Set(this.pendingChanges);
+        const wordsSnapshot = this.words.map(w => ({ ...w }));
+        this.pendingChanges.clear();
+        this.syncToFirestore(previousId, pendingKeys, wordsSnapshot).catch(error => {
           console.error('Error syncing data for previous user:', error);
         });
       }
       
+      // Reset in-memory word progress so previous user's stats do not leak
+      this.resetWordProgress();
+    }
+    
+    this.userId = userId;
+    
+    if (userId && previousId !== userId) {
       // Refresh from Firestore for the new user
       this.refreshFromFirestore();
     }
@@ -158,7 +177,7 @@ export class SpacedRepetitionService {
 
   // Select words for quiz based on spaced repetition algorithm
   public selectWordsForQuiz(count: number): WordWithSpacedRepetition[] {
-    if (!this.isLoaded || this.words.length === 0) {
+    if (!this.isLoaded || this.words.length === 0 || count <= 0) {
       console.warn(`Cannot select words for quiz. Loaded: ${this.isLoaded}, Words count: ${this.words.length}`);
       return [];
     }
@@ -206,16 +225,9 @@ export class SpacedRepetitionService {
       console.log(`Found ${overdueWords.length} overdue words for quiz`);
       console.log('Overdue words:', overdueWords.map(w => w.word).join(', '));
       
-      // If we have 3 or more overdue words, select the top 3 with highest overdue ratio
-      if (overdueWords.length >= 3) {
-        const top3 = overdueWords.slice(0, 3);
-        console.log(`Selecting top 3 overdue words: ${top3.map(w => w.word).join(', ')}`);
-        return top3;
-      } else {
-        // Otherwise, just return all overdue words, up to the count
-        console.log(`Returning all ${overdueWords.length} overdue words`);
-        return overdueWords.slice(0, count);
-      }
+      const selectedOverdue = overdueWords.slice(0, count);
+      console.log(`Selecting ${selectedOverdue.length} overdue words: ${selectedOverdue.map(w => w.word).join(', ')}`);
+      return selectedOverdue;
     }
     
     // 2. Second priority: Unseen words
@@ -583,6 +595,9 @@ export class SpacedRepetitionService {
         - interval: ${wordData.interval || 'MISSING'}`);
       }
       
+      // Reset local words before applying user-specific Firestore data
+      this.resetWordProgress();
+
       // Create a map of our local words for easy lookup
       const wordMap = new Map<string, WordWithSpacedRepetition>();
       this.words.forEach(word => {
@@ -653,16 +668,14 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
           localWord.lastReviewed = firestoreWordData.lastReviewDate;
         }
         
-        // Handle nextReviewDate - if it's 0 but we have lastReviewDate and interval, calculate it
-        if (typeof firestoreWordData.nextReviewDate === 'number') {
-          if (firestoreWordData.nextReviewDate > 0) {
-            localWord.nextReviewDate = firestoreWordData.nextReviewDate;
-          } else if (localWord.lastReviewed > 0 && localWord.interval > 0) {
-            // Calculate nextReviewDate if it's missing but we have lastReviewed and interval
-            const intervalMs = localWord.interval * 24 * 60 * 60 * 1000; // Convert days to ms
-            localWord.nextReviewDate = localWord.lastReviewed + intervalMs;
-            console.log(`Calculated nextReviewDate for "${wordKey}" as ${new Date(localWord.nextReviewDate).toISOString()}`);
-          }
+        // Handle nextReviewDate - if it's missing or 0 but we have lastReviewed and interval, calculate it
+        if (typeof firestoreWordData.nextReviewDate === 'number' && firestoreWordData.nextReviewDate > 0) {
+          localWord.nextReviewDate = firestoreWordData.nextReviewDate;
+        } else if (localWord.lastReviewed > 0 && localWord.interval > 0) {
+          // Calculate nextReviewDate if it's missing or 0 but we have lastReviewed and interval
+          const intervalMs = localWord.interval * 24 * 60 * 60 * 1000; // Convert days to ms
+          localWord.nextReviewDate = localWord.lastReviewed + intervalMs;
+          console.log(`Calculated nextReviewDate for "${wordKey}" as ${new Date(localWord.nextReviewDate).toISOString()}`);
         }
         
         if (typeof firestoreWordData.isBookmarked === 'boolean') localWord.isBookmarked = firestoreWordData.isBookmarked;
@@ -709,14 +722,18 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
   // We don't need to schedule syncs since we only sync on page unload
   
   // Sync pending changes to Firestore
-  public async syncToFirestore(): Promise<void> {
+  public async syncToFirestore(
+    targetUserId: string | null = this.userId,
+    targetPendingChanges: Set<string> = this.pendingChanges,
+    targetWords: WordWithSpacedRepetition[] = this.words
+  ): Promise<void> {
     // If no user ID or no pending changes, skip sync
-    if (!this.userId || this.pendingChanges.size === 0) {
+    if (!targetUserId || targetPendingChanges.size === 0) {
       console.log('[Sync] Skipped. No user or no pending changes.');
       return;
     }
     
-    console.log(`[Sync] Starting sync of ${this.pendingChanges.size} words to Firestore for user ${this.userId}`);
+    console.log(`[Sync] Starting sync of ${targetPendingChanges.size} words to Firestore for user ${targetUserId}`);
     
     try {
       // Import Firestore functions dynamically to avoid circular dependencies
@@ -727,7 +744,7 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
       const db = await getFirestoreInstance();
       
       // Get the user document reference
-      const userDocRef = doc(db, `users/${this.userId}`);
+      const userDocRef = doc(db, `users/${targetUserId}`);
       
       // Check if the user document exists
       const userDoc = await getDoc(userDocRef);
@@ -736,8 +753,8 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
       const updates: Record<string, any> = {};
       
       // Find words with pending changes
-      for (const wordKey of this.pendingChanges) {
-        const word = this.words.find(w => w.word === wordKey);
+      for (const wordKey of targetPendingChanges) {
+        const word = targetWords.find(w => w.word === wordKey);
         if (!word) continue;
         
         console.log(`[Sync] Word "${wordKey}" payload:`, {
@@ -779,7 +796,7 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
           createdAt: Date.now(),
           updatedAt: Date.now()
         });
-        console.log(`Created new user document for user ${this.userId}`);
+        console.log(`Created new user document for user ${targetUserId}`);
       }
       
       // Update the user document with the new word data
@@ -787,8 +804,10 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
       
       console.log(`[Sync] SUCCESS: Synced ${Object.keys(updates).length} words to Firestore.`);
       
-      // Clear pending changes
-      this.pendingChanges.clear();
+      // Clear pending changes if we synced the active set
+      if (targetPendingChanges === this.pendingChanges) {
+        this.pendingChanges.clear();
+      }
       
       // Reset periodic sync counters
       this.lastSyncTime = Date.now();

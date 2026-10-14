@@ -34,7 +34,27 @@ const safeFetchAndParseJson = async (url: string) => {
 };
 
 // API Keys from Environment Variables
-const THESAURUS_API_KEY = import.meta.env.VITE_THESAURUS_API_KEY;
+const THESAURUS_API_KEY = import.meta.env?.VITE_THESAURUS_API_KEY;
+
+const hasValidThesaurusKey = (): boolean => {
+  return Boolean(
+    THESAURUS_API_KEY &&
+    THESAURUS_API_KEY !== 'undefined' &&
+    !String(THESAURUS_API_KEY).startsWith('your-')
+  );
+};
+
+// Local synonym lookup from public/words.json when API key is missing or API returns no results
+const getLocalSynonyms = (word: string): string[] => {
+  const target = word.trim().toLowerCase();
+  const entry = (words as any[]).find(
+    w => typeof w.word === 'string' && w.word.trim().toLowerCase() === target
+  );
+  if (!entry) return [];
+  return [entry.synonym1, entry.synonym2, entry.synonym3]
+    .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    .map(s => s.trim());
+};
 
 // Cache to track used words and prevent repetition
 const usedWordsCache: Set<string> = new Set();
@@ -62,14 +82,18 @@ const hasBeenUsedRecently = (word: string): boolean => {
 // Thesaurus API
 export const getSynonyms = async (word: string): Promise<string[]> => {
   try {
+    if (!hasValidThesaurusKey()) {
+      return getLocalSynonyms(word);
+    }
+
     const data = await safeFetchAndParseJson(
-      `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${word}?key=${THESAURUS_API_KEY}`
+      `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${encodeURIComponent(word)}?key=${THESAURUS_API_KEY}`
     );
     
     // Check if we got valid results
     if (!data || data.length === 0 || typeof data[0] === 'string') {
       console.warn('No synonym results found for:', word);
-      return [];
+      return getLocalSynonyms(word);
     }
     
     // Extract synonyms from the API response
@@ -83,10 +107,11 @@ export const getSynonyms = async (word: string): Promise<string[]> => {
       }
     });
     
-    return [...new Set(synonyms)]; // Return unique synonyms
+    const uniqueSynonyms = [...new Set(synonyms)];
+    return uniqueSynonyms.length > 0 ? uniqueSynonyms : getLocalSynonyms(word);
   } catch (error) {
     console.error('Error fetching synonyms:', error);
-    return [];
+    return getLocalSynonyms(word);
   }
 };
 
@@ -145,19 +170,25 @@ export const getWordOfTheDay = async (): Promise<WordData> => {
   const dailyWord = dailyWords[index];
 
   try {
-    const data = await safeFetchAndParseJson(`https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${dailyWord.word}?key=${THESAURUS_API_KEY}`);
-
     let synonyms: string[] = [];
     let antonyms: string[] = [];
 
-    if (data && data.length > 0) {
-      const entry = data[0];
-      if (entry.meta && entry.meta.syns && entry.meta.syns.length > 0) {
-        synonyms = entry.meta.syns.flat().slice(0, 5);
+    if (hasValidThesaurusKey()) {
+      const data = await safeFetchAndParseJson(`https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${encodeURIComponent(dailyWord.word)}?key=${THESAURUS_API_KEY}`);
+
+      if (data && data.length > 0 && typeof data[0] !== 'string') {
+        const entry = data[0];
+        if (entry.meta && entry.meta.syns && entry.meta.syns.length > 0) {
+          synonyms = entry.meta.syns.flat().slice(0, 5);
+        }
+        if (entry.meta && entry.meta.ants && entry.meta.ants.length > 0) {
+          antonyms = entry.meta.ants.flat().slice(0, 5);
+        }
       }
-      if (entry.meta && entry.meta.ants && entry.meta.ants.length > 0) {
-        antonyms = entry.meta.ants.flat().slice(0, 5);
-      }
+    }
+
+    if (synonyms.length === 0) {
+      synonyms = getLocalSynonyms(dailyWord.word);
     }
     
     return {
@@ -177,7 +208,7 @@ export const getWordOfTheDay = async (): Promise<WordData> => {
       pronunciation: dailyWord.pronunciation,
       definition: dailyWord.meaning,
       example: dailyWord.example,
-      synonyms: [],
+      synonyms: getLocalSynonyms(dailyWord.word),
       antonyms: []
     };
   }
@@ -356,9 +387,11 @@ const getContrastingWords = async (
 ): Promise<string[]> => {
   try {
     // First try to get antonyms via the thesaurus API with cache busting
-    const data = await safeFetchAndParseJson(
-      `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${word}?key=${THESAURUS_API_KEY}&t=${timestamp}`
-    );
+    const data = hasValidThesaurusKey()
+      ? await safeFetchAndParseJson(
+          `https://www.dictionaryapi.com/api/v3/references/thesaurus/json/${encodeURIComponent(word)}?key=${THESAURUS_API_KEY}&t=${timestamp}`
+        )
+      : [];
     
     if (data && data.length > 0 && typeof data[0] !== 'string') {
       // Extract antonyms from the API response
