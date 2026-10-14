@@ -1,9 +1,7 @@
-import { initializeApp, deleteApp } from 'firebase/app';
+import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   GoogleAuthProvider, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,

@@ -533,7 +533,7 @@ export class SpacedRepetitionService {
       let userDoc;
       if (forceRefresh) {
         // Import additional functions when needed
-        const { getFirestore, connectFirestoreEmulator, CACHE_SIZE_UNLIMITED, enableNetwork } = await import('firebase/firestore');
+        const { enableNetwork } = await import('firebase/firestore');
         
         // Make sure network is enabled for this request
         try {
@@ -623,7 +623,7 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
 - timesCorrect: ${firestoreWordData.timesCorrect}
 - isBookmarked: ${firestoreWordData.isBookmarked}
 - lastReviewed: ${firestoreWordData.lastReviewed} (${firestoreWordData.lastReviewed ? new Date(firestoreWordData.lastReviewed).toISOString() : 'not set'})
-- lastReviewDate: ${firestoreWordData.lastReviewed} (${firestoreWordData.lastReviewed ? new Date(firestoreWordData.lastReviewed).toISOString() : 'not set'})
+- lastReviewDate: ${firestoreWordData.lastReviewDate} (${firestoreWordData.lastReviewDate ? new Date(firestoreWordData.lastReviewDate).toISOString() : 'not set'})
 - nextReviewDate: ${firestoreWordData.nextReviewDate} (${firestoreWordData.nextReviewDate ? new Date(firestoreWordData.nextReviewDate).toISOString() : 'not set'})
         `);
         
@@ -649,8 +649,8 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
         // Last Review Date: prefer 'lastReviewed', fallback to 'lastReviewDate'
         if (typeof firestoreWordData.lastReviewed === 'number' && firestoreWordData.lastReviewed > 0) {
           localWord.lastReviewed = firestoreWordData.lastReviewed;
-        } else if (typeof firestoreWordData.lastReviewed === 'number' && firestoreWordData.lastReviewed > 0) {
-          localWord.lastReviewed = firestoreWordData.lastReviewed;
+        } else if (typeof firestoreWordData.lastReviewDate === 'number' && firestoreWordData.lastReviewDate > 0) {
+          localWord.lastReviewed = firestoreWordData.lastReviewDate;
         }
         
         // Handle nextReviewDate - if it's 0 but we have lastReviewDate and interval, calculate it
@@ -808,7 +808,7 @@ UPDATING WORD "${wordKey}" FROM FIRESTORE:
     try {
       // Import Firestore functions dynamically to avoid circular dependencies
       const { getFirestoreInstance } = await import('./FirestoreConfig');
-      const { doc, getDoc, collection, getDocs } = await import('firebase/firestore');
+      const { doc, getDoc } = await import('firebase/firestore');
       const { getAuth } = await import('firebase/auth');
       
       if (!this.userId) {

@@ -23,8 +23,8 @@ const WordQuizGame: React.FC = () => {
   const [showHint, setShowHint] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
   const [openDefinitions, setOpenDefinitions] = useState<number[]>([]);
-  const [showExampleFor, setShowExampleFor] = useState<number | null>(null);
-  const [answeredCount, setAnsweredCount] = useState(0);
+  const [, setShowExampleFor] = useState<number | null>(null);
+  const [, setAnsweredCount] = useState(0);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [responseStartTime, setResponseStartTime] = useState<number>(0);
   const [currentWord, setCurrentWord] = useState<Word | null>(null);
